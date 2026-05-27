@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Copyright (c) 2026 李中然 (MallocPointer)
 
 版权所有。
@@ -6,6 +7,21 @@ Copyright (c) 2026 李中然 (MallocPointer)
 2. 禁止未经许可修改、改编、逆向工程本项目代码。
 3. 若用于非盈利性公益服务，只需在明显位置标注本项目地址，即可无额外限制使用。
 4. 如需修改或用于商业用途，请事先邮件联系获取授权：lizhongran910@gmail.com。
+=======
+MIT License
+
+Copyright (c) 2026 MaxChen12114
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+>>>>>>> 23d3952504e45aaca0ce4340d18d6c8c5a65494e
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -14,6 +30,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+<<<<<<< HEAD
 
 -------------------------------------------------------------------------------
 
@@ -36,3 +53,5 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+=======
+>>>>>>> 23d3952504e45aaca0ce4340d18d6c8c5a65494e

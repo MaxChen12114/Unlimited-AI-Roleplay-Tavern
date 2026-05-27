@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DeepSeek Worker UI (Password Gate + Donate)
 
 ## Where to modify
@@ -29,3 +30,7 @@ Open the Worker URL, it will prompt for password.
 - History & custom prompt are stored in browser localStorage only (optional).
 - 😈 uses Worker built-in prompts; 😇 allows web custom prompt.
 - Donate button 💚 opens QR modal.
+=======
+# Unlimited-AI-Roleplay-Tavern
+test
+>>>>>>> 23d3952504e45aaca0ce4340d18d6c8c5a65494e
