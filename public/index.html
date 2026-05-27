@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chat Chat</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <!-- FOUC-safe 主题预应用：在 styles.css 应用前读 LS 立即贴 data-theme -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("cfw_theme_v1");
+        if (t === "glass") document.documentElement.setAttribute("data-theme", "glass");
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="topbar-shell">
+      <div class="topbar-scroll" id="topbarScroll">
+        <div class="topbar-inner">
+
+          <!-- 模式切换：免费(NVIDIA) / 快速(DeepSeek官方) -->
+          <button class="iconbtn" id="modeToggle" title="切换免费/快速模式"></button>
+
+          <!-- 费用显示（小字，仅在快速模式且有费用时显示） -->
+          <span id="costDisplay" style="font-size:11px;color:#9a9a9a;white-space:nowrap;"></span>
+
+          <a
+            href="https://github.com/MallocPointer/unlimited-ai"
+            target="_blank"
+            class="iconbtn"
+            id="githubBtn"
+            style="text-decoration:none;"
+            title="GitHub 开源地址"
+          >
+            <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+          </a>
+
+          <div class="pill model-pill">
+            <label for="modelSel" class="model-label">Model</label>
+            <select id="modelSel"></select>
+          </div>
+
+          <button class="iconbtn" id="characterBtn" title="🎭 角色卡：选择 / 管理 RP 角色">🎭</button>
+          <button class="iconbtn topbar-toggle" id="multiAgentToggle" title="单人 / 多人场景模式。多人模式下：角色面板出现「场景成员」管理区，卡库出现 +场景 按钮；输入框上方出现发言者选择条；AI 看到其他角色的发言但只代表自己。">🧑</button>
+          <button class="iconbtn" id="propsBtn" title="🎒 道具卡：临时改变 AI 行为 / 状态 / 好感度">🎒</button>
+          <button class="iconbtn" id="personaToggle" title="😈 解限模式：内置解限提示词；有角色卡时叠加角色设定 | 😇 自定义模式：用下方自定义提示词或角色卡内容（无内置解限）">😈</button>
+          <button class="iconbtn" id="settingsBtn" title="Settings · 外观风格 / 本地历史 / 自定义模板">⚙️</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="history">
+    <div class="chat" id="chat">
+      <div id="bottom-spacer"></div>
+    </div>
+  </div>
+
+  <div class="input-floating">
+    <div class="composer-toolbar">
+      <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关（仅快速模式生效）">🧠 思考关</button>
+    </div>
+    <div class="input-inner" id="composer">
+      <textarea id="msg" rows="1" placeholder="Message..."></textarea>
+      <button id="sendBtn" title="发送" aria-label="发送">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 11.5L21 3l-8.5 18-2.5-7.5L3 11.5z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="settingsMask">
+    <div id="settings" style="overflow-y:auto;max-height:85vh;">
+      <div id="settingsHeader">
+        <h3>Settings</h3>
+        <div class="hint">所有数据仅保存在本地浏览器（localStorage），不会上传</div>
+      </div>
+
+      <div class="card">
+        <h4>外观风格（Visual Theme）</h4>
+        <p>
+          切换桌面 UI 视觉风格。<b>极简</b> = 深色平面、低干扰、阅读优先；<b>毛玻璃</b> = 亮色渐变 + 半透模糊、视觉层次更强。设置实时生效并保存到本地。
+        </p>
+        <div class="theme-options">
+          <label class="theme-option">
+            <input type="radio" name="cfwTheme" value="minimal">
+            <span class="theme-swatch theme-swatch-minimal" aria-hidden="true"></span>
+            <span class="theme-text">
+              <span class="theme-title">极简 Minimal</span>
+              <span class="theme-sub">深色 · 平面 · 高对比</span>
+            </span>
+          </label>
+          <label class="theme-option">
+            <input type="radio" name="cfwTheme" value="glass">
+            <span class="theme-swatch theme-swatch-glass" aria-hidden="true"></span>
+            <span class="theme-text">
+              <span class="theme-title">毛玻璃 Glass</span>
+              <span class="theme-sub">亮色 · 渐变 · 半透模糊</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>提示词预设库（Prompt Presets）</h4>
+        <p>
+          解限提示词 PROMPT_1/2/3 之后追加的语调约束层。启用的预设按顺序以空行拼接注入。
+          <b>红线</b>：只追加，不替换解限 base。名为 <b>COT</b> 的预设在快速模式（DeepSeek）下自动禁用，避免与 native thinking 冲突。
+        </p>
+        <div id="presetList" class="preset-list"></div>
+        <div class="rowline">
+          <div></div>
+          <div class="btns">
+            <button class="smallbtn" id="presetNewBtn">+ 新建</button>
+            <button class="smallbtn" id="presetImportBtn" title="从剪贴板导入 JSON">📥 导入</button>
+            <button class="smallbtn" id="presetExportBtn" title="导出 JSON 到剪贴板">📤 导出</button>
+            <button class="smallbtn danger" id="presetResetBtn" title="清空并恢复 5 个内置 starter">重置 starter</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>费用日志（Cost Log）</h4>
+        <p>
+          仅记录快速模式（DeepSeek）实际计费。<b>独立于本地历史</b>——清除本地历史不会清掉这里。按日累加并永久保留，存 <code>localStorage.cfw_cost_log_v1</code>。
+        </p>
+        <div id="costSummary" class="cost-summary"></div>
+        <details class="cost-details">
+          <summary>每日明细</summary>
+          <div id="costDailyList" class="cost-daily-list"></div>
+        </details>
+        <div class="rowline">
+          <div></div>
+          <div class="btns">
+            <button class="smallbtn" id="costExportBtn" title="导出为 JSON 到剪贴板">📤 导出</button>
+            <button class="smallbtn danger" id="costClearBtn" title="清空费用日志">清空日志</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>本地对话记忆（Local History）</h4>
+        <p>
+          开启后：刷新页面/重开浏览器仍会恢复对话。关闭后：仅本次页面会话有效，不再落盘保存。<br>
+          ⚠️ 清除历史只会删除本地对话，不会影响“网页自定义人物模板”。
+        </p>
+        <div class="rowline">
+          <div class="toggle">
+            <input type="checkbox" id="historyKeep">
+            <label for="historyKeep">保留本地历史（启用本地记忆）</label>
+          </div>
+          <div class="btns">
+            <button class="smallbtn danger" id="clearHistory">清除本地历史</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>网页自定义人物模板（Web Custom Persona）</h4>
+        <p>
+          ⚠️ 仅当右上角为 <b>😇</b> <b>且未选择角色卡</b>时生效；<b>😈</b> 模式与<b>已选角色卡</b>时此处都会被忽略。<br>
+          高级用法：可在此填写任意 system prompt，包括你自己写的解限内容——系统不限制内容，效果取决于你写什么。<br>
+          清除模板只会删除网页自定义内容，不会影响本地历史或角色卡。
+        </p>
+        <div class="rowline">
+          <div class="toggle">
+            <input type="checkbox" id="promptKeep">
+            <label for="promptKeep">保留自定义人物模板（保存到本地）</label>
+          </div>
+          <div class="btns">
+            <button class="smallbtn danger" id="clearPrompt">清除自定义模板</button>
+          </div>
+        </div>
+        <textarea id="customPrompt" placeholder="仅😇时生效：在这里写网页端自定义 system prompt（可多行）。"></textarea>
+        <div class="rowline">
+          <div></div>
+          <div class="btns">
+            <button class="smallbtn" id="savePrompt">保存</button>
+            <button class="smallbtn" id="closeSettings">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 4 阶段 6：预设编辑模态框 -->
+  <div id="presetEditMask" style="display:none">
+    <div id="presetEdit">
+      <h3 id="presetEditTitle">编辑预设</h3>
+      <label class="preset-edit-label">名称（特殊名称 <code>COT</code> 会在快速模式下自动跳过）</label>
+      <input id="presetEditName" type="text" maxlength="30" placeholder="例如：日常 · 自然语气">
+      <label class="preset-edit-label">内容（追加到 PROMPT_1/2/3 之后的 system 提示）</label>
+      <textarea id="presetEditContent" rows="10" placeholder="预设的提示词正文。留空 = 启用时也不注入（等同占位）。"></textarea>
+      <div class="rowline">
+        <div></div>
+        <div class="btns">
+          <button class="smallbtn" id="presetEditSave">保存</button>
+          <button class="smallbtn" id="presetEditCancel">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 脚本加载顺序：基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
+<script src="/config.js"></script>
+<script src="/character.js"></script>
+<script src="/multi-agent.js"></script>
+<script src="/props.js"></script>
+<script src="/theme.js"></script>
+<script src="/app.js"></script>
+<script src="/presets-ui.js"></script>
+<script src="/cost-log-ui.js"></script>
+<script src="/chat-ux.js"></script>
+</body>
+</html>
