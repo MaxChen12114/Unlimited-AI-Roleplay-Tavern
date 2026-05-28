@@ -1,6 +1,5 @@
 // src/worker.js
 import {
-  CHAT_PASSWORD,
   DEFAULT_MODEL_FREE,
   DEFAULT_MODEL_FAST,
   MODELS_FREE,
@@ -101,11 +100,25 @@ function buildPropsInstruction(activeProps) {
   return `【当前生效的特殊状态】\n${valid.join("\n")}`;
 }
 
-// 多角色场景：传入除当前发言者外的其他场景成员名字列表，AI 会知道自己在多人对话中
-function buildSceneInstruction(otherNames) {
+// 多角色场景：根据 fishbowlMode 三态切换 system prompt（Phase 4 阶段 11）
+// orchestrate（默认 / V1 兼容）：只代表自己 + 看得见其他人发言（反向约束）
+// relay（接龙）：无议题轮转，自由发挥，150-250 字
+// discuss（讨论）：议题驱动，可输出 [next:角色名] 或 [end]，150-250 字
+function buildSceneInstruction(otherNames, fishbowlMode, topic, currentSpeakerName) {
   if (!Array.isArray(otherNames) || !otherNames.length) return "";
   const names = otherNames.filter(n => typeof n === "string" && n.trim()).map(n => n.trim());
   if (!names.length) return "";
+  const mode = fishbowlMode === "relay" ? "relay" : fishbowlMode === "discuss" ? "discuss" : "orchestrate";
+  const meTag = currentSpeakerName ? `（你是「${currentSpeakerName}」）` : "";
+
+  if (mode === "relay") {
+    return `【鱼缸接龙模式】\n场上参会者：${names.join("、")}${meTag}。\n- 这是一场没有固定议题的多角色自由对话，由引擎自动轮换发言者。\n- 你只代表你自己说话，绝对不要替其他人发言。\n- 历史里其他参会者的发言对你可见，请自然接话、回应、吐槽，或转移话题。\n- 控制在 150-250 字，保持你的人设。`;
+  }
+  if (mode === "discuss") {
+    const t = (topic || "").trim() || "(未设定)";
+    return `【鱼缸讨论模式】\n议题：${t}\n场上参会者：${names.join("、")}${meTag}。\n- 这是一场围绕议题的多方讨论，由引擎自动轮换发言者。\n- 你只代表你自己说话，围绕议题表达你的立场和观点。\n- 历史里其他参会者的发言对你可见，请主动回应——表达赞同、反对、补充或提出新角度。\n- 控制在 150-250 字，保持你的人设。\n- 进阶玩法（可选）：如果你强烈希望某位参会者接话，可在回复末尾追加 [next:角色名]；如果你认为议题已收敛、不需再继续，可追加 [end]。标签对用户不可见，由系统解析。`;
+  }
+  // orchestrate（V1 默认 / 编排模式，兼容老逻辑）
   return `【多人对话场景】\n你正在与用户以及以下其他角色同处一个场景：${names.join("、")}。\n- 你只代表你自己说话，不要替其他角色发言。\n- 称呼用户和其他角色时使用对应的名字；不必重复介绍自己。\n- 历史里其他角色的发言对你可见，可以回应/吐槽/接话，但保持你自己的人设。`;
 }
 
@@ -126,13 +139,14 @@ function buildPriorSummaryInstruction(summary) {
 }
 
 // Layer 2 状态聚合层：rel + emo + 好感度阶梯为【当前状态】；道具卡 + 多人场景 + 阈值事件 + 先前摘要 各占一块
-function buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary) {
+// Phase 4 阶段 11：新增 fishbowlMode/topic/currentSpeakerName 透传给 buildSceneInstruction
+function buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, currentSpeakerName) {
   const r = RELATION_MAP[rel] || "";
   const e = EMOTION_MAP[emo] !== undefined ? EMOTION_MAP[emo]
     : (emo && emo !== "neutral" ? `你现在的情绪状态：${emo}。` : "");
   const a = getAffectionStage(affection);
   const p = buildPropsInstruction(activeProps);
-  const sc = buildSceneInstruction(sceneOtherNames);
+  const sc = buildSceneInstruction(sceneOtherNames, fishbowlMode, topic, currentSpeakerName);
   const th = buildThresholdEventsInstruction(thresholdEvents);
   const sm = buildPriorSummaryInstruction(priorSummary);
   const stateParts = [r, e, a].filter(Boolean);
@@ -140,9 +154,60 @@ function buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, threshol
   return [sm, status, p, sc, th].filter(Boolean).join("\n\n");
 }
 
-function buildCharacterSystemPrompt(card, rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary) {
+function buildCharacterSystemPrompt(card, rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic) {
   if (!isValidCard(card)) return "";
-  return [META_IDENTITY, buildLayer1(card), buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary)].filter(Boolean).join("\n\n---\n\n");
+  const currentSpeakerName = card.name || "";
+  return [META_IDENTITY, buildLayer1(card), buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, currentSpeakerName)].filter(Boolean).join("\n\n---\n\n");
+}
+
+// ────────────────────────────
+// 鉴权 + 云同步
+// ────────────────────────────
+// checkAuth: 校验 Authorization: Bearer <password> header
+//   返回 null  = 没带 header（"软"模式：调用方决定是否放行）
+//   返回 false = 带了 header 但密码不对（一律 401）
+//   返回 true  = 校验通过
+// /api/chat 和 /api/summarize：null/true 放行，false → 401（聊天密码可选）
+// /sync GET/PUT：必须 true，其余一律 401（同步强制密码保护）
+function checkAuth(request, env) {
+  const auth = request.headers.get("Authorization") || "";
+  const m = auth.match(/^Bearer\s+(.+)$/);
+  const provided = m ? m[1].trim() : "";
+  if (!provided) return null;
+  if (!env.CHAT_PASSWORD) return false;
+  return provided === env.CHAT_PASSWORD;
+}
+
+// 云同步：单 key 存全部用户数据 blob
+// GET /sync  → 返回 KV 里的 JSON blob（空时返回 "null"）
+// PUT /sync  → 把 body 整段写入 KV（body 是前端 dump 出的 JSON 字符串）
+async function handleSync(request, env) {
+  if (checkAuth(request, env) !== true) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
+  if (!env.TAVERN_SYNC) {
+    return resp("KV namespace 'TAVERN_SYNC' not bound. Add binding in wrangler.toml.", "text/plain; charset=utf-8", 500);
+  }
+  const KEY = "user:default";
+  if (request.method === "GET") {
+    const raw = await env.TAVERN_SYNC.get(KEY);
+    return resp(raw || "null", "application/json; charset=utf-8");
+  }
+  if (request.method === "PUT") {
+    const body = await request.text();
+    if (!body) {
+      return resp("Empty body", "text/plain; charset=utf-8", 400);
+    }
+    if (body.length > 5 * 1024 * 1024) {
+      return resp("Body too large (>5MB)", "text/plain; charset=utf-8", 413);
+    }
+    await env.TAVERN_SYNC.put(KEY, body);
+    return resp(
+      JSON.stringify({ ok: true, savedAt: Date.now(), size: body.length }),
+      "application/json; charset=utf-8"
+    );
+  }
+  return resp("Method not allowed", "text/plain; charset=utf-8", 405);
 }
 
 function resp(body, contentType = "text/plain; charset=utf-8", status = 200, extraHeaders = {}) {
@@ -230,6 +295,10 @@ function streamWithHeartbeat(upstreamBody) {
 }
 
 async function handleChat(request, env) {
+  // 软鉴权：带 header 必须对，没带就放行（聊天密码可选）
+  if (checkAuth(request, env) === false) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
   let payload;
   try {
     payload = await request.json();
@@ -266,11 +335,15 @@ async function handleChat(request, env) {
   // 阶段 4-②：一次性阈值事件； 4-③：先前剧情摘要
   const thresholdEvents = Array.isArray(payload?.thresholdEvents) ? payload.thresholdEvents : [];
   const priorSummary = typeof payload?.priorSummary === "string" ? payload.priorSummary : "";
+  // Phase 4 阶段 11：鱼缸讨论模式（fishbowl-engine 调用时传入）
+  // fishbowlMode: "" | "relay" | "discuss"（空串走 orchestrate / V1 兼容路径）
+  const fishbowlMode = typeof payload?.fishbowlMode === "string" ? payload.fishbowlMode : "";
+  const topic = typeof payload?.topic === "string" ? payload.topic : "";
   // Phase 4 阶段 6：提示词预设库（前端已 join('\n\n') 成一整段，worker 只负责追加在系统提示末尾）
   // 红线：PROMPT_1/2/3 解限 base 一字不改，本字段只能追加，不能替换
   const extraSystemPrompts = typeof payload?.extraSystemPrompts === "string" ? payload.extraSystemPrompts.trim() : "";
   // Worker 端拼装三层 system prompt（META_IDENTITY + Layer1 + Layer2 状态聚合层）
-  const characterPrompt = buildCharacterSystemPrompt(characterCard, relation, emotion, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary);
+  const characterPrompt = buildCharacterSystemPrompt(characterCard, relation, emotion, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic);
 
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   const upstreamMessages = [];
@@ -310,6 +383,22 @@ async function handleChat(request, env) {
       entry.reasoning_content = msg.reasoning_content;
     }
     upstreamMessages.push(entry);
+  }
+
+  // Phase 4 阶段 11：鱼缸模式（relay/discuss）需确保 upstream messages 最后一条为 user role
+  // 否则 OpenAI 兼容 API 通常会报错（last must be user）。鱼缸引擎调空 user 文本触发，
+  // 前端不向 session 注入引导消息，由 worker 端临时追加（不影响 session 历史）
+  if (fishbowlMode === "relay" || fishbowlMode === "discuss") {
+    const reversed = [...upstreamMessages].reverse();
+    const lastConv = reversed.find(m => m.role === "user" || m.role === "assistant");
+    if (!lastConv || lastConv.role === "assistant") {
+      upstreamMessages.push({
+        role: "user",
+        content: fishbowlMode === "discuss"
+          ? `（系统提示：现在轮到你发言。请围绕议题"${(topic || "").trim() || "(未设定)"}"表达你的观点，或回应前面参会者。）`
+          : `（系统提示：现在轮到你发言。请自然接话或开启新话题。）`,
+      });
+    }
   }
 
   // 选择 endpoint 和 API Key
@@ -387,6 +476,9 @@ async function handleChat(request, env) {
 
 // 阶段 4-③：上下文摘要 — 调 DeepSeek V4-Flash（最便宜）把早期对话压成一段剧情摘要
 async function handleSummarize(request, env) {
+  if (checkAuth(request, env) === false) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
   if (!env.DEEPSEEK_API_KEY) {
     return resp("Missing DEEPSEEK_API_KEY", "text/plain; charset=utf-8", 500);
   }
@@ -452,6 +544,10 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/summarize") {
       return handleSummarize(request, env);
+    }
+
+    if ((request.method === "GET" || request.method === "PUT") && url.pathname === "/sync") {
+      return handleSync(request, env);
     }
 
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {

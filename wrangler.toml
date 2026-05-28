@@ -6,3 +6,7 @@ compatibility_date = "2026-03-11"
 directory = "./public"
 binding = "ASSETS"
 run_worker_first = ["/api/*", "/config.js"]
+
+[[kv_namespaces]]
+binding = "TAVERN_SYNC"
+id = "0c8ada44d0d64fe59e42497bc38665df"

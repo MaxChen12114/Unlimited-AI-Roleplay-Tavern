@@ -2,8 +2,10 @@
 // 拆自 index.html 内联 script（架构整理 · B 方案）
 // 红线：只追加，不替换解限 base。名为 COT 的预设在快速模式（DeepSeek）下自动禁用。
 (function () {
-  window.addEventListener("load", function () {
+  window.addEventListener("load", async function () {
     var PRESETS_KEY = "cfw_prompt_presets_v1";
+    // 4.7：现有 5 个 starter 已抽到 /starter-presets.json，由解限编辑器接管来源；
+    // 此处保留硬编码作为 fetch 失败时的最终兜底（保证离线/部署初期可用）。
     var STARTER_PRESETS = [
       { id: "starter-daily",     name: "日常 · 自然语气", enabled: true,  order: 0,
         content: "请保持自然放松的日常对话语调。除非用户主动引导，否则不要刻意推进暧昧、冲突或激烈剧情。回复长度与用户对齐，避免大段独白与过度内心戏。日常闲聊使用口语化表达和短句，不堆砌生理细节，跟随用户的节奏。" },
@@ -16,6 +18,19 @@
       { id: "starter-cot",       name: "COT",                enabled: false, order: 4,
         content: "回复前先在 <think> 标签内简要规划本轮回应的方向、角色情绪、关键动作，然后在 </think> 后给出正文。思考过程对用户可见。" }
     ];
+
+    // 4.7：尝试用 /starter-presets.json 覆盖默认包（同 schema：Array 或 { presets: Array }）。
+    // 任何错误都静默回退到上面的硬编码，永不抛出。
+    try {
+      var __sresp = await fetch("/starter-presets.json", { cache: "no-store" });
+      if (__sresp && __sresp.ok) {
+        var __sdata = await __sresp.json();
+        var __sarr = Array.isArray(__sdata)
+          ? __sdata
+          : (__sdata && Array.isArray(__sdata.presets) ? __sdata.presets : null);
+        if (__sarr && __sarr.length) STARTER_PRESETS = __sarr;
+      }
+    } catch (e) { /* 静默回退到硬编码 starter */ }
 
     function loadPresets() {
       try {

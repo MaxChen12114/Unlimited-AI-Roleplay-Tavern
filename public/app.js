@@ -43,13 +43,14 @@
 
   // discardPartial=true: 同时清空 partialStream（重试/删除 使用，明确丢弃已收到的部分）
   // discardPartial=false（默认）: 保留 partialStream，AbortError 处理时会把已收到部分作为完整 AI 回复入 session（停止按钮 使用）
-  window.__abortCurrent = function (discardPartial) {
+  function abortCurrent(discardPartial) {
     if (discardPartial) partialStream = null;
     if (currentController) {
       try { currentController.abort(); } catch {}
       currentController = null;
     }
-  };
+  }
+  window.__abortCurrent = abortCurrent; // 向后兼容(chat-ux.js / multi-agent.js 旧调用)
 
   // 切换某个 AI row 的“流式中”状态：控制停止按钮可见性 + dataset 标记
   function setStreamingUI(row, streaming) {
@@ -305,9 +306,13 @@
     historyWrap.scrollTo({ top: historyWrap.scrollHeight, behavior: "auto" });
   }
 
-  function makeRow(role) {
+  // 鱼缸 V3:opts.side === "right" 时给 AI row 加 .side-right,吐槽姬模式下气泡贴右(头像/气泡用 flex-direction:row-reverse 翻转)
+  // opts.moderator === true 时改 .row.moderator 居中(主持人/旁白介入)
+  function makeRow(role, opts) {
     const row = document.createElement("div");
     row.className = "row " + (role === "user" ? "user" : "ai");
+    if (opts && opts.side === "right" && role !== "user") row.classList.add("side-right");
+    if (opts && opts.moderator) row.classList.add("moderator");
     const avatar = document.createElement("div");
     avatar.className = "avatar " + (role === "user" ? "human" : "bot");
     avatar.textContent = role === "user" ? "U" : "B";
@@ -532,11 +537,17 @@
     } catch { return ""; }
   }
 
-  async function send() {
-    if (isSending) return;
+  // sendOne(opts):核心发送逻辑,可由鱼缸引擎(fishbowl-engine.js)驱动
+  // opts: { text?, allowEmptyText?, fishbowlMode?, topic?, asCard? }
+  // 不传 opts.text 时从 inputEl 取;返回 AI 完整回复文本,失败/中断返回 null/undefined
+  async function sendOne(opts) {
+    if (isSending) return null;
+    const opts0 = opts || {};
+    const isAuto = opts0.text != null;
     updateSpacer();
-    const text = inputEl.value.trim();
-    if (!text) return;
+    const text = isAuto ? String(opts0.text).trim() : inputEl.value.trim();
+    const allowEmpty = !!opts0.allowEmptyText;
+    if (!text && !allowEmpty) return null;
 
     isSending = true;
     sendBtn.disabled = true;
@@ -583,19 +594,25 @@
     currentController = controller;
     partialStream = { full: "", fullReasoning: "", speakerId: "", speakerName: "", speakerIcon: "" };
 
-    const userRow = makeRow("user");
-    userRow.bubble.textContent = text;
-    const inEst = estimateTokens(text);
-    totalInEstimate += inEst;
-    userRow.stats.textContent = `Input(估算): ≈${inEst} | Total In(估算): ≈${totalInEstimate}`;
-    session.push({ role: "user", content: text });
-    persistSessionIfEnabled();
-    inputEl.value = "";
-    inputEl.style.height = "auto";
+    // 鱼缸 V3:text 为空(allowEmptyText 模式下,鱼缸引擎驱动 / 群聊点角色 chip 直发)时
+    // 跳过创建 user row,直接进 AI —— 消灭空 User 气泡污染观感
+    if (text) {
+      const userRow = makeRow("user");
+      userRow.bubble.textContent = text;
+      const inEst = estimateTokens(text);
+      totalInEstimate += inEst;
+      userRow.stats.textContent = `Input(估算): ≈${inEst} | Total In(估算): ≈${totalInEstimate}`;
+      session.push({ role: "user", content: text });
+      persistSessionIfEnabled();
+    }
+    if (!isAuto) {
+      inputEl.value = "";
+      inputEl.style.height = "auto";
+    }
     updateSpacer();
     scrollToBottom();
 
-    const aiRow = makeRow("assistant");
+    const aiRow = makeRow("assistant", { side: opts0.side || null });
     setStreamingUI(aiRow.rowEl, true);
     // 让 character.js 接管头像/名字（仅当有当前角色卡时）
     if (window.__character && window.__character.decorateAiRow) {
@@ -615,7 +632,10 @@
 
     // 角色卡数据（由 character.js 提供；Worker 端 buildSystemPrompt 用三层架构拼接）
     const ch = window.__character || null;
-    const characterCard = ch && ch.getActiveCard ? ch.getActiveCard() : null;
+    // 鱼缸引擎驱动时用 opts.asCard 强制指定发言者(避免 active card 被切换造成错位)
+    const characterCard = opts0.asCard
+      ? opts0.asCard
+      : (ch && ch.getActiveCard ? ch.getActiveCard() : null);
     const relation = ch && ch.getActiveRelation ? ch.getActiveRelation() : "default";
     const emotion = ch && ch.getActiveEmotion ? ch.getActiveEmotion() : "neutral";
     const affection = ch && ch.getActiveAffection ? ch.getActiveAffection() : null;
@@ -652,6 +672,8 @@
           priorSummary,
           extraSystemPrompts: getExtraSystemPrompts(snapshotMode),
           thinking: (snapshotMode === "fast" && thinkingOn) ? "enabled" : "disabled",
+          fishbowlMode: opts0.fishbowlMode || null,
+          topic: opts0.topic || "",
           messages: session,
         }),
       });
@@ -814,6 +836,23 @@
     if (window.__props && window.__props.tickAfterTurn) {
       try { window.__props.tickAfterTurn(); } catch {}
     }
+    return full;
+  }
+
+  // send():从输入框取消息的入口(绑定 Send 按钮 / Enter 键)
+  async function send() { return sendOne(); }
+
+  // injectModeratorMsg(text):鱼缸引擎/主持人通道,把一条旁白介入消息插到 session 和 UI
+  // 吐槽姬 mode 下走 .row.moderator 居中样式,不占用户位
+  function injectModeratorMsg(text) {
+    if (!text) return;
+    const content = "【主持人】" + String(text);
+    const row = makeRow("user", { moderator: true });
+    row.bubble.textContent = content;
+    session.push({ role: "user", content });
+    persistSessionIfEnabled();
+    updateSpacer();
+    scrollToBottom();
   }
 
   sendBtn.addEventListener("click", send);
@@ -853,8 +892,136 @@
     if (tbs) tbs.scrollLeft = tbs.scrollWidth;
   }
 
-  // 暴露给 multi-agent.js：scene-strip 切换时需要触发输入区高度重算
-  window.__app = { updateSpacer };
+  // 暴露给 multi-agent.js / fishbowl-engine.js
+  window.__app = { updateSpacer, sendOne, abortCurrent, injectModeratorMsg };
+
+  // ─── Phase 5：云同步 + 鉴权设置面板 ───
+  (function setupSyncAuthUI() {
+    const syncEnableToggle = document.getElementById("syncEnableToggle");
+    const syncNowBtn       = document.getElementById("syncNowBtn");
+    const syncExportBtn    = document.getElementById("syncExportBtn");
+    const syncImportBtn    = document.getElementById("syncImportBtn");
+    const syncImportFile   = document.getElementById("syncImportFile");
+    const syncStatusEl     = document.getElementById("syncStatus");
+    const chatProtectToggle= document.getElementById("chatProtectToggle");
+    const authLogoutBtn    = document.getElementById("authLogoutBtn");
+    const authStatusEl     = document.getElementById("authStatus");
+    if (!syncEnableToggle || !chatProtectToggle) return; // 面板未加载
+
+    function fmtTime(ms) {
+      if (!ms) return "—";
+      try { return new Date(ms).toLocaleString("zh-CN", { hour12: false }); } catch { return String(ms); }
+    }
+    function refreshAuthUI() {
+      if (!window.__auth) return;
+      const hasToken = !!window.__auth.getToken();
+      chatProtectToggle.checked = window.__auth.chatProtectOn();
+      authStatusEl.textContent = hasToken
+        ? "✅ 已登录（密码 token 保存在本地）"
+        : "⚠️ 未登录（启用聊天保护或云同步时会弹密码框）";
+      authLogoutBtn.disabled = !hasToken;
+    }
+    function refreshSyncUI() {
+      if (!window.__sync) return;
+      const s = window.__sync.getStatus();
+      syncEnableToggle.checked = s.enabled;
+      const parts = [s.enabled ? "已启用" : "未启用"];
+      if (s.lastPush) parts.push("上次推送 " + fmtTime(s.lastPush));
+      syncStatusEl.textContent = parts.join(" · ");
+    }
+
+    if (window.__sync) {
+      window.__sync.onStatus((st, detail) => {
+        if (st === "syncing") syncStatusEl.textContent = "⏳ 同步中…";
+        else if (st === "synced") {
+          const size = detail && detail.size ? ` (${(detail.size / 1024).toFixed(1)}KB)` : "";
+          syncStatusEl.textContent = "✅ 同步完成 " + fmtTime(Date.now()) + size;
+        } else if (st === "restored") {
+          syncStatusEl.textContent = "✅ 已从云端还原，即将刷新页面…";
+        } else if (st === "error") {
+          syncStatusEl.textContent = "❌ " + (detail && detail.message || "同步失败");
+        }
+      });
+    }
+
+    syncEnableToggle.addEventListener("change", async () => {
+      if (!window.__sync || !window.__auth) return;
+      if (syncEnableToggle.checked) {
+        if (!window.__auth.getToken()) {
+          try {
+            const pw = await window.__auth.promptForPassword({
+              title: "🔒 启用云同步",
+              hint: "输入 Cloudflare Secret <code>CHAT_PASSWORD</code> 的值。密码会保存在本地浏览器，下次自动登录。",
+            });
+            window.__auth.setToken(pw);
+          } catch { syncEnableToggle.checked = false; return; }
+        }
+        window.__sync.setSyncEnabled(true);
+        refreshAuthUI(); refreshSyncUI();
+        window.__sync.pullOnStartup();
+      } else {
+        window.__sync.setSyncEnabled(false);
+        refreshSyncUI();
+      }
+    });
+
+    syncNowBtn.addEventListener("click", async () => {
+      if (!window.__sync) return;
+      try { await window.__sync.pushNow(); } catch (e) { alert("同步失败: " + e.message); }
+    });
+    syncExportBtn.addEventListener("click", async () => {
+      if (!window.__sync) return;
+      try { await window.__sync.exportJSON(); } catch (e) { alert("导出失败: " + e.message); }
+    });
+    syncImportBtn.addEventListener("click", () => { syncImportFile && syncImportFile.click(); });
+    syncImportFile && syncImportFile.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (!confirm("导入将覆盖本地所有数据（角色卡 / 道具 / 历史 / preset / 费用日志）。确认？")) {
+        syncImportFile.value = ""; return;
+      }
+      try {
+        await window.__sync.importJSON(file);
+        alert("导入成功，即将刷新页面…");
+        setTimeout(() => location.reload(), 400);
+      } catch (err) { alert("导入失败: " + err.message); }
+      syncImportFile.value = "";
+    });
+
+    chatProtectToggle.addEventListener("change", async () => {
+      if (!window.__auth) return;
+      if (chatProtectToggle.checked) {
+        if (!window.__auth.getToken()) {
+          try {
+            const pw = await window.__auth.promptForPassword({
+              title: "🔒 启用聊天密码保护",
+              hint: "输入 Cloudflare Secret <code>CHAT_PASSWORD</code> 的值。",
+            });
+            window.__auth.setToken(pw);
+          } catch { chatProtectToggle.checked = false; return; }
+        }
+        window.__auth.setChatProtect(true);
+      } else {
+        window.__auth.setChatProtect(false);
+      }
+      refreshAuthUI();
+    });
+
+    authLogoutBtn.addEventListener("click", () => {
+      if (!window.__auth) return;
+      if (!confirm("退出登录会清除本地保存的密码 token，并关闭云同步和聊天保护。确认？")) return;
+      window.__auth.clearToken();
+      window.__auth.setChatProtect(false);
+      if (window.__sync) window.__sync.setSyncEnabled(false);
+      refreshAuthUI(); refreshSyncUI();
+    });
+
+    // 设置面板打开时刷新一次
+    settingsBtn.addEventListener("click", () => {
+      refreshAuthUI();
+      refreshSyncUI();
+    });
+  })();
 
   init();
 })();

@@ -5,220 +5,594 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Chat Chat</title>
   <link rel="stylesheet" href="/styles.css" />
-  <!-- FOUC-safe 主题预应用：在 styles.css 应用前读 LS 立即贴 data-theme -->
+  <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
+  <!-- 支持 minimal(默认) / glass / lewd-peach / lewd-doll;新增主题只需扩 ALLOWED 集合 -->
   <script>
     (function () {
       try {
         var t = localStorage.getItem("cfw_theme_v1");
-        if (t === "glass") document.documentElement.setAttribute("data-theme", "glass");
+        var ALLOWED = { glass: 1, "lewd-peach": 1, "lewd-doll": 1 };
+        if (ALLOWED[t]) document.documentElement.setAttribute("data-theme", t);
       } catch (e) {}
     })();
   </script>
 </head>
 <body>
-<div id="app">
-  <div id="topbar">
-    <div class="topbar-shell">
-      <div class="topbar-scroll" id="topbarScroll">
-        <div class="topbar-inner">
+<!-- 4.3 双侧栏布局:.app-shell grid 包左侧栏 + #app(中) + 右侧栏 -->
+<!-- 桌面 ≥1024px:三列 240/auto/240 常驻;手机 <1024px:左栏变 ☰ 抽屉,右栏隐藏 -->
+<div class="app-shell">
 
-          <!-- 模式切换：免费(NVIDIA) / 快速(DeepSeek官方) -->
-          <button class="iconbtn" id="modeToggle" title="切换免费/快速模式"></button>
-
-          <!-- 费用显示（小字，仅在快速模式且有费用时显示） -->
-          <span id="costDisplay" style="font-size:11px;color:#9a9a9a;white-space:nowrap;"></span>
-
-          <a
-            href="https://github.com/MallocPointer/unlimited-ai"
-            target="_blank"
-            class="iconbtn"
-            id="githubBtn"
-            style="text-decoration:none;"
-            title="GitHub 开源地址"
-          >
-            <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-            </svg>
-          </a>
-
-          <div class="pill model-pill">
-            <label for="modelSel" class="model-label">Model</label>
-            <select id="modelSel"></select>
-          </div>
-
-          <button class="iconbtn" id="characterBtn" title="🎭 角色卡：选择 / 管理 RP 角色">🎭</button>
-          <button class="iconbtn topbar-toggle" id="multiAgentToggle" title="单人 / 多人场景模式。多人模式下：角色面板出现「场景成员」管理区，卡库出现 +场景 按钮；输入框上方出现发言者选择条；AI 看到其他角色的发言但只代表自己。">🧑</button>
-          <button class="iconbtn" id="propsBtn" title="🎒 道具卡：临时改变 AI 行为 / 状态 / 好感度">🎒</button>
-          <button class="iconbtn" id="personaToggle" title="😈 解限模式：内置解限提示词；有角色卡时叠加角色设定 | 😇 自定义模式：用下方自定义提示词或角色卡内容（无内置解限）">😈</button>
-          <button class="iconbtn" id="settingsBtn" title="Settings · 外观风格 / 本地历史 / 自定义模板">⚙️</button>
-        </div>
-      </div>
+  <!-- ══ 左侧栏:按钮入口 + 未来扩展槽 ══ -->
+  <!-- DOM 只一份,桌面常驻可见 / 手机 transform translateX(-102%) 隐藏,body.drawer-open 时滑出 -->
+  <aside class="left-sidebar" id="leftSidebar" aria-label="侧边面板">
+    <div class="sidebar-header">
+      <span class="sidebar-title">面板</span>
+      <button class="iconbtn sidebar-close mobile-only" id="sidebarCloseBtn" aria-label="关闭菜单">✕</button>
     </div>
-  </div>
 
-  <div id="history">
-    <div class="chat" id="chat">
-      <div id="bottom-spacer"></div>
-    </div>
-  </div>
-
-  <div class="input-floating">
-    <div class="composer-toolbar">
-      <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关（仅快速模式生效）">🧠 思考关</button>
-    </div>
-    <div class="input-inner" id="composer">
-      <textarea id="msg" rows="1" placeholder="Message..."></textarea>
-      <button id="sendBtn" title="发送" aria-label="发送">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 11.5L21 3l-8.5 18-2.5-7.5L3 11.5z"></path>
-        </svg>
+    <nav class="sidebar-nav">
+      <button class="sidebar-btn" id="characterBtn" title="🎭 角色卡:选择 / 管理 RP 角色">
+        <span class="sidebar-btn-icon">🎭</span>
+        <span class="sidebar-btn-label">角色卡</span>
       </button>
-    </div>
-  </div>
+      <button class="sidebar-btn" id="propsBtn" title="🎒 道具卡:临时改变 AI 行为 / 状态 / 好感度">
+        <span class="sidebar-btn-icon">🎒</span>
+        <span class="sidebar-btn-label">道具卡</span>
+      </button>
+      <button class="sidebar-btn topbar-toggle" id="multiAgentToggle" title="单人 / 多人场景模式。多人模式下:角色面板出现「场景成员」管理区,卡库出现 +场景 按钮;输入框上方出现发言者选择条;AI 看到其他角色的发言但只代表自己。">
+        <span class="sidebar-btn-icon">🧑</span>
+        <span class="sidebar-btn-label">多智能体</span>
+      </button>
+      <!-- 4.5 解限模式按钮已搬到顶栏(项目灵魂必须常驻 sync 左侧),此处不再放 personaToggle 副本,避免 id 冲突 -->
+      <a class="sidebar-btn" id="githubBtn" href="https://github.com/MallocPointer/unlimited-ai" target="_blank" title="GitHub 开源地址">
+        <span class="sidebar-btn-icon">
+          <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+          </svg>
+        </span>
+        <span class="sidebar-btn-label">GitHub</span>
+      </a>
 
-  <div id="settingsMask">
-    <div id="settings" style="overflow-y:auto;max-height:85vh;">
-      <div id="settingsHeader">
-        <h3>Settings</h3>
-        <div class="hint">所有数据仅保存在本地浏览器（localStorage），不会上传</div>
-      </div>
+      <!-- 4.7 解限编辑器入口：项目灵魂的 JSON 资产编辑壳 -->
+      <button class="sidebar-btn" id="unlimitedEditorBtn" title="🛠 解限编辑器：编辑 Preset / 角色 / 世界观 / UI 配置的 JSON 资产，区别于正常聊天">
+        <span class="sidebar-btn-icon">🛠</span>
+        <span class="sidebar-btn-label">解限编辑器</span>
+      </button>
 
-      <div class="card">
-        <h4>外观风格（Visual Theme）</h4>
-        <p>
-          切换桌面 UI 视觉风格。<b>极简</b> = 深色平面、低干扰、阅读优先；<b>毛玻璃</b> = 亮色渐变 + 半透模糊、视觉层次更强。设置实时生效并保存到本地。
-        </p>
-        <div class="theme-options">
-          <label class="theme-option">
-            <input type="radio" name="cfwTheme" value="minimal">
-            <span class="theme-swatch theme-swatch-minimal" aria-hidden="true"></span>
-            <span class="theme-text">
-              <span class="theme-title">极简 Minimal</span>
-              <span class="theme-sub">深色 · 平面 · 高对比</span>
-            </span>
-          </label>
-          <label class="theme-option">
-            <input type="radio" name="cfwTheme" value="glass">
-            <span class="theme-swatch theme-swatch-glass" aria-hidden="true"></span>
-            <span class="theme-text">
-              <span class="theme-title">毛玻璃 Glass</span>
-              <span class="theme-sub">亮色 · 渐变 · 半透模糊</span>
-            </span>
-          </label>
-        </div>
-      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-title">即将上线</div>
 
-      <div class="card">
-        <h4>提示词预设库（Prompt Presets）</h4>
-        <p>
-          解限提示词 PROMPT_1/2/3 之后追加的语调约束层。启用的预设按顺序以空行拼接注入。
-          <b>红线</b>：只追加，不替换解限 base。名为 <b>COT</b> 的预设在快速模式（DeepSeek）下自动禁用，避免与 native thinking 冲突。
-        </p>
-        <div id="presetList" class="preset-list"></div>
-        <div class="rowline">
-          <div></div>
-          <div class="btns">
-            <button class="smallbtn" id="presetNewBtn">+ 新建</button>
-            <button class="smallbtn" id="presetImportBtn" title="从剪贴板导入 JSON">📥 导入</button>
-            <button class="smallbtn" id="presetExportBtn" title="导出 JSON 到剪贴板">📤 导出</button>
-            <button class="smallbtn danger" id="presetResetBtn" title="清空并恢复 5 个内置 starter">重置 starter</button>
-          </div>
-        </div>
-      </div>
+      <button class="sidebar-btn sidebar-btn-disabled" disabled title="阶段 1 计划:世界书 / Lore Book">
+        <span class="sidebar-btn-icon">📖</span>
+        <span class="sidebar-btn-label">世界书</span>
+      </button>
+      <button class="sidebar-btn sidebar-btn-disabled" disabled title="阶段 3 计划:图像基础设施(生图 + 改图双模式)">
+        <span class="sidebar-btn-icon">🎨</span>
+        <span class="sidebar-btn-label">图像(生/改)</span>
+      </button>
+      <button class="sidebar-btn sidebar-btn-disabled" disabled title="计划中:文件上传(图/文本)">
+        <span class="sidebar-btn-icon">📎</span>
+        <span class="sidebar-btn-label">文件上传</span>
+      </button>
+      <button class="sidebar-btn sidebar-btn-disabled" disabled title="阶段 2 计划:角色卡/UI/JSON 导入">
+        <span class="sidebar-btn-icon">📥</span>
+        <span class="sidebar-btn-label">JSON 导入</span>
+      </button>
+      <button class="sidebar-btn sidebar-btn-disabled" disabled title="计划中:多开聊天 tab">
+        <span class="sidebar-btn-icon">➕</span>
+        <span class="sidebar-btn-label">多开聊天</span>
+      </button>
+    </nav>
+  </aside>
 
-      <div class="card">
-        <h4>费用日志（Cost Log）</h4>
-        <p>
-          仅记录快速模式（DeepSeek）实际计费。<b>独立于本地历史</b>——清除本地历史不会清掉这里。按日累加并永久保留，存 <code>localStorage.cfw_cost_log_v1</code>。
-        </p>
-        <div id="costSummary" class="cost-summary"></div>
-        <details class="cost-details">
-          <summary>每日明细</summary>
-          <div id="costDailyList" class="cost-daily-list"></div>
-        </details>
-        <div class="rowline">
-          <div></div>
-          <div class="btns">
-            <button class="smallbtn" id="costExportBtn" title="导出为 JSON 到剪贴板">📤 导出</button>
-            <button class="smallbtn danger" id="costClearBtn" title="清空费用日志">清空日志</button>
-          </div>
-        </div>
-      </div>
+  <!-- 抽屉遮罩(仅手机可见) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 
-      <div class="card">
-        <h4>本地对话记忆（Local History）</h4>
-        <p>
-          开启后：刷新页面/重开浏览器仍会恢复对话。关闭后：仅本次页面会话有效，不再落盘保存。<br>
-          ⚠️ 清除历史只会删除本地对话，不会影响“网页自定义人物模板”。
-        </p>
-        <div class="rowline">
-          <div class="toggle">
-            <input type="checkbox" id="historyKeep">
-            <label for="historyKeep">保留本地历史（启用本地记忆）</label>
-          </div>
-          <div class="btns">
-            <button class="smallbtn danger" id="clearHistory">清除本地历史</button>
-          </div>
-        </div>
-      </div>
+  <!-- ══ 中间:原 #app 块不动(仅顶栏 markup 重写) ══ -->
+  <div id="app">
+    <div id="topbar">
+      <div class="topbar-shell">
+        <div class="topbar-scroll" id="topbarScroll">
+          <div class="topbar-inner">
 
-      <div class="card">
-        <h4>网页自定义人物模板（Web Custom Persona）</h4>
-        <p>
-          ⚠️ 仅当右上角为 <b>😇</b> <b>且未选择角色卡</b>时生效；<b>😈</b> 模式与<b>已选角色卡</b>时此处都会被忽略。<br>
-          高级用法：可在此填写任意 system prompt，包括你自己写的解限内容——系统不限制内容，效果取决于你写什么。<br>
-          清除模板只会删除网页自定义内容，不会影响本地历史或角色卡。
-        </p>
-        <div class="rowline">
-          <div class="toggle">
-            <input type="checkbox" id="promptKeep">
-            <label for="promptKeep">保留自定义人物模板（保存到本地）</label>
-          </div>
-          <div class="btns">
-            <button class="smallbtn danger" id="clearPrompt">清除自定义模板</button>
-          </div>
-        </div>
-        <textarea id="customPrompt" placeholder="仅😇时生效：在这里写网页端自定义 system prompt（可多行）。"></textarea>
-        <div class="rowline">
-          <div></div>
-          <div class="btns">
-            <button class="smallbtn" id="savePrompt">保存</button>
-            <button class="smallbtn" id="closeSettings">关闭</button>
+            <!-- ☰ 抽屉切换(仅手机):手机点它打开左侧抽屉 -->
+            <button class="iconbtn mobile-only" id="menuToggle" aria-label="菜单" title="打开面板">☰</button>
+
+            <!-- 模式切换:免费(NVIDIA) / 快速(DeepSeek官方) -->
+            <button class="iconbtn" id="modeToggle" title="切换免费/快速模式"></button>
+
+            <div class="pill model-pill">
+              <label for="modelSel" class="model-label">Model</label>
+              <select id="modelSel"></select>
+            </div>
+
+            <!-- 💰 inline 直显 费用:桌面/手机都扫一眼可见,不再收进 popover -->
+            <span id="costDisplay" class="topbar-cost-inline" title="今日 / 总计费用(仅快速模式计费)"></span>
+
+            <!-- 弹性间距:把 [😈解限] + ☁️ 同步 + ⚙️ 设置推到右侧 -->
+            <span class="topbar-spacer"></span>
+
+            <!-- 4.5 😈 解限模式开关(项目灵魂):从左侧栏搬到顶栏 sync 左侧,圆按钮形态 -->
+            <!-- app.js 已绑定 #personaToggle 事件,DOM 仅换位,不动逻辑(textContent 切 😈 / 😇) -->
+            <button class="iconbtn" id="personaToggle" title="😈 解限模式 / 😇 自定义模式切换" aria-label="解限/自定义">😈</button>
+
+            <!-- ☁️ 云同步实时状态(仅桌面显示;手机顶栏空间紧不显) -->
+            <div id="syncStatusIndicator" class="desktop-only" title="云同步状态">
+              <span class="sync-dot sync-idle"></span><span class="sync-text">同步</span>
+            </div>
+
+            <button class="iconbtn" id="settingsBtn" title="Settings · 外观风格 / 本地历史 / 自定义模板">⚙️</button>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Phase 4 阶段 6：预设编辑模态框 -->
-  <div id="presetEditMask" style="display:none">
-    <div id="presetEdit">
-      <h3 id="presetEditTitle">编辑预设</h3>
-      <label class="preset-edit-label">名称（特殊名称 <code>COT</code> 会在快速模式下自动跳过）</label>
-      <input id="presetEditName" type="text" maxlength="30" placeholder="例如：日常 · 自然语气">
-      <label class="preset-edit-label">内容（追加到 PROMPT_1/2/3 之后的 system 提示）</label>
-      <textarea id="presetEditContent" rows="10" placeholder="预设的提示词正文。留空 = 启用时也不注入（等同占位）。"></textarea>
-      <div class="rowline">
-        <div></div>
-        <div class="btns">
-          <button class="smallbtn" id="presetEditSave">保存</button>
-          <button class="smallbtn" id="presetEditCancel">取消</button>
+    <div id="history">
+      <div class="chat" id="chat">
+        <div id="bottom-spacer"></div>
+      </div>
+    </div>
+
+    <div class="input-floating">
+      <div class="composer-toolbar">
+        <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关(仅快速模式生效)">🧠 思考关</button>
+      </div>
+      <div class="input-inner" id="composer">
+        <textarea id="msg" rows="1" placeholder="Message..."></textarea>
+        <button id="sendBtn" title="发送" aria-label="发送">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 11.5L21 3l-8.5 18-2.5-7.5L3 11.5z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="settingsMask">
+      <div id="settings" style="overflow-y:auto;max-height:85vh;">
+        <div id="settingsHeader">
+          <h3>Settings</h3>
+          <div class="hint">本地数据保存在浏览器;启用云同步后也会上传到你的 Cloudflare KV</div>
+        </div>
+
+        <div class="card">
+          <h4>🔒 密码保护（Auth）</h4>
+          <p>
+            <b>云同步</b>永远需要密码（用 Cloudflare Secret <code>CHAT_PASSWORD</code> 鉴权）。
+            <b>聊天密码保护</b>可选:开启后调用 <code>/api/chat</code> 需带 token,关闭后聊天接口公开(任何扫到域名的人都能用你的余额)。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="chatProtectToggle">
+              <label for="chatProtectToggle">启用聊天密码保护(强烈推荐)</label>
+            </div>
+            <div class="btns">
+              <button class="smallbtn danger" id="authLogoutBtn" title="清除本地保存的密码 token">退出登录</button>
+            </div>
+          </div>
+          <div id="authStatus" style="font-size:11px;color:#888;margin-top:8px;"></div>
+        </div>
+
+        <div class="card">
+          <h4>☁️ 云同步（Cloud Sync）</h4>
+          <p>
+            把全部数据(角色卡 · 道具 · preset · 亲密度 · 费用日志 · 对话历史)同步到 Cloudflare KV,换浏览器换设备都能看到。
+            开启后本地改动会延迟 3 秒自动推送。<b>不同步:</b>密码 token / 同步状态本身。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="syncEnableToggle">
+              <label for="syncEnableToggle">启用云同步</label>
+            </div>
+            <div class="btns">
+              <button class="smallbtn" id="syncNowBtn">↻ 立即同步</button>
+              <button class="smallbtn" id="syncExportBtn">📤 导出备份</button>
+              <button class="smallbtn" id="syncImportBtn">📥 导入备份</button>
+              <input type="file" id="syncImportFile" accept=".json" style="display:none">
+            </div>
+          </div>
+          <div id="syncStatus" style="font-size:11px;color:#888;margin-top:8px;"></div>
+        </div>
+
+        <div class="card">
+          <h4>外观风格(Visual Theme)</h4>
+          <p>
+            切换桌面 UI 视觉风格。<b>极简</b> = 深色平面、低干扰、阅读优先;<b>毛玻璃</b> = 亮色渐变 + 半透模糊。
+            <b>蜜桃 / 少女</b> = 暖色双主题,带呼吸脉动效果(启动音频需点击页面一次解锁)。设置实时生效并保存到本地。
+          </p>
+          <div class="theme-options">
+            <label class="theme-option">
+              <input type="radio" name="cfwTheme" value="minimal">
+              <span class="theme-swatch theme-swatch-minimal" aria-hidden="true"></span>
+              <span class="theme-text">
+                <span class="theme-title">极简 Minimal</span>
+                <span class="theme-sub">深色 · 平面 · 高对比</span>
+              </span>
+            </label>
+            <label class="theme-option">
+              <input type="radio" name="cfwTheme" value="glass">
+              <span class="theme-swatch theme-swatch-glass" aria-hidden="true"></span>
+              <span class="theme-text">
+                <span class="theme-title">毛玻璃 Glass</span>
+                <span class="theme-sub">亮色 · 渐变 · 半透模糊</span>
+              </span>
+            </label>
+            <label class="theme-option">
+              <input type="radio" name="cfwTheme" value="lewd-peach">
+              <span class="theme-swatch theme-swatch-lewd-peach" aria-hidden="true"></span>
+              <span class="theme-text">
+                <span class="theme-title">蜜桃 Peach</span>
+                <span class="theme-sub">暗色底 · 暖粉调</span>
+              </span>
+            </label>
+            <label class="theme-option">
+              <input type="radio" name="cfwTheme" value="lewd-doll">
+              <span class="theme-swatch theme-swatch-lewd-doll" aria-hidden="true"></span>
+              <span class="theme-text">
+                <span class="theme-title">少女 Doll</span>
+                <span class="theme-sub">亮粉底 · 反差色</span>
+              </span>
+            </label>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:8px;line-height:1.5;">
+            💡 蜜桃/少女主题需要 <code>/assets/lewd-ambient.mp3</code>(自配 CC0 心跳/呼吸 loop,仓库不打包版权资源)。无音频时走 CSS 慢呼吸 fallback。Shift+Esc 可紧急切回极简。
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>🎵 主题音效(Ambient Audio)</h4>
+          <p>
+            控制 <b>蜜桃 / 少女</b> 主题下的环境音和呼吸脉动。<b>关闭后</b>即使切到这两个主题也不会发声、不脉动(背景仍是配色)。其他主题不受影响。设置仅本设备生效(不进云同步)。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="lewdAudioToggle">
+              <label for="lewdAudioToggle">启用主题音频 + 脉动</label>
+            </div>
+            <div class="btns">
+              <button class="smallbtn danger" id="lewdAudioPanic" title="立即暂停 + 切回极简主题(等同 Shift+Esc)">⏹ 紧急停止</button>
+            </div>
+          </div>
+          <div class="rowline" style="margin-top:8px;align-items:center;">
+            <label for="lewdAudioVolume" style="font-size:12px;color:#aaa;min-width:60px;">音量</label>
+            <input type="range" id="lewdAudioVolume" min="0" max="100" step="1" style="flex:1;margin:0 12px;">
+            <span id="lewdAudioVolumeLabel" style="font-size:11px;color:#888;min-width:40px;text-align:right;">70%</span>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:8px;line-height:1.5;">
+            💡 <b>Shift+Esc</b> 是全局紧急停止快捷键,按下后自动切回极简主题。首次启动需点击页面任意位置一次解锁浏览器音频权限。
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>提示词预设库(Prompt Presets)</h4>
+          <p>
+            解限提示词 PROMPT_1/2/3 之后追加的语调约束层。启用的预设按顺序以空行拼接注入。
+            <b>红线</b>:只追加,不替换解限 base。名为 <b>COT</b> 的预设在快速模式(DeepSeek)下自动禁用,避免与 native thinking 冲突。
+          </p>
+          <div id="presetList" class="preset-list"></div>
+          <div class="rowline">
+            <div></div>
+            <div class="btns">
+              <button class="smallbtn" id="presetNewBtn">+ 新建</button>
+              <button class="smallbtn" id="presetImportBtn" title="从剪贴板导入 JSON">📥 导入</button>
+              <button class="smallbtn" id="presetExportBtn" title="导出 JSON 到剪贴板">📤 导出</button>
+              <button class="smallbtn danger" id="presetResetBtn" title="清空并恢复 5 个内置 starter">重置 starter</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>费用日志(Cost Log)</h4>
+          <p>
+            仅记录快速模式(DeepSeek)实际计费。<b>独立于本地历史</b>——清除本地历史不会清掉这里。按日累加并永久保留,存 <code>localStorage.cfw_cost_log_v1</code>。
+          </p>
+          <div id="costSummary" class="cost-summary"></div>
+          <details class="cost-details">
+            <summary>每日明细</summary>
+            <div id="costDailyList" class="cost-daily-list"></div>
+          </details>
+          <div class="rowline">
+            <div></div>
+            <div class="btns">
+              <button class="smallbtn" id="costExportBtn" title="导出为 JSON 到剪贴板">📤 导出</button>
+              <button class="smallbtn danger" id="costClearBtn" title="清空费用日志">清空日志</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>本地对话记忆(Local History)</h4>
+          <p>
+            开启后:刷新页面/重开浏览器仍会恢复对话。关闭后:仅本次页面会话有效,不再落盘保存。<br>
+            ⚠️ 清除历史只会删除本地对话,不会影响“网页自定义人物模板”。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="historyKeep">
+              <label for="historyKeep">保留本地历史(启用本地记忆)</label>
+            </div>
+            <div class="btns">
+              <button class="smallbtn danger" id="clearHistory">清除本地历史</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>网页自定义人物模板(Web Custom Persona)</h4>
+          <p>
+            ⚠️ 仅当右上角为 <b>😇</b> <b>且未选择角色卡</b>时生效;<b>😈</b> 模式与<b>已选角色卡</b>时此处都会被忽略。<br>
+            高级用法:可在此填写任意 system prompt,包括你自己写的解限内容——系统不限制内容,效果取决于你写什么。<br>
+            清除模板只会删除网页自定义内容,不会影响本地历史或角色卡。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="promptKeep">
+              <label for="promptKeep">保留自定义人物模板(保存到本地)</label>
+            </div>
+            <div class="btns">
+              <button class="smallbtn danger" id="clearPrompt">清除自定义模板</button>
+            </div>
+          </div>
+          <textarea id="customPrompt" placeholder="仅😇时生效:在这里写网页端自定义 system prompt(可多行)。"></textarea>
+          <div class="rowline">
+            <div></div>
+            <div class="btns">
+              <button class="smallbtn" id="savePrompt">保存</button>
+              <button class="smallbtn" id="closeSettings">关闭</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Phase 4 阶段 6:预设编辑模态框 -->
+    <div id="presetEditMask" style="display:none">
+      <div id="presetEdit">
+        <h3 id="presetEditTitle">编辑预设</h3>
+        <label class="preset-edit-label">名称(特殊名称 <code>COT</code> 会在快速模式下自动跳过)</label>
+        <input id="presetEditName" type="text" maxlength="30" placeholder="例如:日常 · 自然语气">
+        <label class="preset-edit-label">内容(追加到 PROMPT_1/2/3 之后的 system 提示)</label>
+        <textarea id="presetEditContent" rows="10" placeholder="预设的提示词正文。留空 = 启用时也不注入(等同占位)。"></textarea>
+        <div class="rowline">
+          <div></div>
+          <div class="btns">
+            <button class="smallbtn" id="presetEditSave">保存</button>
+            <button class="smallbtn" id="presetEditCancel">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
+  <!-- /#app -->
+
+  <!-- ══ 右侧栏:鱼缸控制台 slot + 未来扩展槽(仅桌面) ══ -->
+  <aside class="right-sidebar" id="rightSidebar" aria-label="鱼缸与侧辅面板">
+    <div class="sidebar-header">
+      <span class="sidebar-title">面板</span>
+    </div>
+    <!-- multi-agent.js 会把 .fishbowl-side-panel 挂到这里(桌面);手机才降级到底部条 -->
+    <div id="fishbowlSlot" class="sidebar-slot"></div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-title">即将上线</div>
+    <div class="sidebar-slot-placeholder">
+      角色形象 / 场景图 / 上下文摘要<br>
+      (阶段 3 图像上线后填充)
+    </div>
+  </aside>
 
 </div>
+<!-- /.app-shell -->
 
-<!-- 脚本加载顺序：基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
+<!-- ══ 4.4 手机底部 4-tab 标签条(仅 <1024px 显示;桌面端 display:none) ══ -->
+<nav class="mobile-bottom-tabs" id="mobileBottomTabs" aria-label="底部面板切换">
+  <button class="mobile-tab-btn active" data-tab="fishbowl" title="多智能体群聊鱼缸">
+    <span class="mobile-tab-icon">🎣</span>
+    <span class="mobile-tab-label">鱼缸</span>
+  </button>
+  <button class="mobile-tab-btn" data-tab="avatar" disabled title="阶段 3 图像基础设施上线后启用">
+    <span class="mobile-tab-icon">🖼️</span>
+    <span class="mobile-tab-label">形象</span>
+  </button>
+  <button class="mobile-tab-btn" data-tab="scene" disabled title="阶段 3 图像基础设施上线后启用">
+    <span class="mobile-tab-icon">🌆</span>
+    <span class="mobile-tab-label">场景</span>
+  </button>
+  <button class="mobile-tab-btn" data-tab="memo" disabled title="上下文摘要 · 计划中">
+    <span class="mobile-tab-icon">📝</span>
+    <span class="mobile-tab-label">摘要</span>
+  </button>
+</nav>
+<div class="mobile-tab-panel" id="mobileTabPanel-avatar" data-tab="avatar">角色形象 · 阶段 3 图像基础设施上线后填充</div>
+<div class="mobile-tab-panel" id="mobileTabPanel-scene"  data-tab="scene">场景图 · 阶段 3 图像基础设施上线后填充</div>
+<div class="mobile-tab-panel" id="mobileTabPanel-memo"   data-tab="memo">上下文摘要 · 计划中</div>
+
+<script>
+(function(){
+  var tabs = document.querySelectorAll('.mobile-tab-btn');
+  var panels = document.querySelectorAll('.mobile-tab-panel');
+  if (!tabs.length) return;
+  tabs.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if (btn.disabled) return;
+      var t = btn.getAttribute('data-tab');
+      tabs.forEach(function(b){ b.classList.toggle('active', b === btn); });
+      panels.forEach(function(p){
+        p.classList.toggle('active', p.getAttribute('data-tab') === t);
+      });
+      // 鱼缸 tab 选中时让鱼缸面板恢复显示(被其他 tab 暂时遮挡过)
+      var fb = document.querySelector('.fishbowl-side-panel');
+      if (fb) fb.style.visibility = (t === 'fishbowl') ? '' : 'hidden';
+    });
+  });
+})();
+</script>
+
+<!-- Lewd 主题人体剪影装饰 v3 - 侧卧曲线(横向 viewBox 360x200)
+     头/颈/肩/腰窝/臀凸/大腿/小腿/脚 连成一气,背后长发垂落
+     pointer-events:none 不挡交互;CSS 在 <640px 隐藏;尊重 prefers-reduced-motion -->
+<div id="lewd-silhouette" aria-hidden="true">
+  <svg class="lewd-silhouette-svg" id="lewd-silhouette-peach" viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMax meet">
+    <!-- peach: 侧卧 头在右 -->
+    <circle cx="312" cy="46" r="17" fill="currentColor" opacity="0.92"/>
+    <path fill="currentColor" opacity="0.92" d="M298,62 C282,68 268,76 252,86 C232,98 214,114 222,128 C230,140 206,148 174,152 C132,156 82,156 36,152 C22,150 22,142 38,138 C72,132 130,135 175,130 C194,128 200,121 188,113 C176,105 198,92 232,80 C258,72 280,66 298,62 Z"/>
+    <path stroke="currentColor" stroke-width="5" fill="none" opacity="0.6" stroke-linecap="round" d="M322,55 C314,84 316,118 326,148"/>
+    <path fill="currentColor" opacity="0.55" d="M196,108 C228,96 258,90 274,86 C284,84 286,98 274,104 C254,114 220,118 198,118 Z"/>
+  </svg>
+  <svg class="lewd-silhouette-svg" id="lewd-silhouette-doll" viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMax meet">
+    <!-- doll: 侧卧 头在左(peach 的镜像姿态) -->
+    <circle cx="48" cy="46" r="17" fill="currentColor" opacity="0.92"/>
+    <path fill="currentColor" opacity="0.92" d="M62,62 C78,68 92,76 108,86 C128,98 146,114 138,128 C130,140 154,148 186,152 C228,156 278,156 324,152 C338,150 338,142 322,138 C288,132 230,135 185,130 C166,128 160,121 172,113 C184,105 162,92 128,80 C102,72 80,66 62,62 Z"/>
+    <path stroke="currentColor" stroke-width="5" fill="none" opacity="0.6" stroke-linecap="round" d="M38,55 C46,84 44,118 34,148"/>
+    <path fill="currentColor" opacity="0.55" d="M164,108 C132,96 102,90 86,86 C76,84 74,98 86,104 C106,114 140,118 162,118 Z"/>
+  </svg>
+</div>
+
+<!-- ══ 4.3 抽屉切换逻辑(手机 ☰ 点开 / 遮罩点关 / ESC 点关 / 点抽屉内按钮后自动关) ══ -->
+<script>
+(function(){
+  var body = document.body;
+  var menuBtn = document.getElementById('menuToggle');
+  var closeBtn = document.getElementById('sidebarCloseBtn');
+  var backdrop = document.getElementById('sidebarBackdrop');
+  var sidebar = document.getElementById('leftSidebar');
+  if (!menuBtn || !sidebar) return;
+  function open(){ body.classList.add('drawer-open'); }
+  function close(){ body.classList.remove('drawer-open'); }
+  menuBtn.addEventListener('click', open);
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  if (backdrop) backdrop.addEventListener('click', close);
+  // 手机上点抽屉里任意可用按钮后自动关闭,避免点完还要手动 ✕
+  sidebar.addEventListener('click', function(e){
+    if (!window.matchMedia('(max-width: 1023px)').matches) return;
+    var t = e.target.closest('.sidebar-btn:not([disabled]),.sidebar-close');
+    if (!t) return;
+    if (t.id === 'sidebarCloseBtn') return; // 已独立处理
+    setTimeout(close, 60);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && body.classList.contains('drawer-open')) close();
+  });
+})();
+</script>
+
+<!-- ══ 4.3 同步状态实时显示(订阅 __sync 事件 + 兜底定时刷新) ══ -->
+<script>
+(function(){
+  function fmt(sec){
+    if (sec < 60) return sec + '秒前';
+    if (sec < 3600) return Math.floor(sec/60) + '分前';
+    if (sec < 86400) return Math.floor(sec/3600) + '小时前';
+    return Math.floor(sec/86400) + '天前';
+  }
+  function refresh(){
+    var ind = document.getElementById('syncStatusIndicator');
+    if (!ind) return;
+    var sync = window.__sync;
+    var enabled = false;
+    try {
+      if (sync && typeof sync.syncEnabled === 'function') enabled = !!sync.syncEnabled();
+      else if (sync && typeof sync.isEnabled === 'function') enabled = !!sync.isEnabled();
+      else enabled = localStorage.getItem('cfw_sync_enabled_v1') === '1';
+    } catch(e){}
+    if (!enabled) {
+      ind.innerHTML = '<span class="sync-dot sync-off"></span><span class="sync-text">未启用</span>';
+      ind.title = '云同步未启用(点 ⚙️ 开启)';
+      return;
+    }
+    var status = null;
+    try { status = (sync && typeof sync.getStatus === 'function' && sync.getStatus()) || null; } catch(e){}
+    var cls = 'sync-ok', txt = '已同步', title = '云同步已启用';
+    if (status) {
+      if (status.state === 'pushing' || status.state === 'pulling' || status.state === 'syncing' || status.busy) {
+        cls = 'sync-active'; txt = '同步中';
+      } else if (status.state === 'error' || status.error) {
+        cls = 'sync-error'; txt = '错误';
+        title = String(status.error || status.message || '同步错误');
+      } else {
+        var ts = status.lastPushAt || status.lastSyncAt || status.lastAt || 0;
+        if (ts) {
+          var sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+          txt = fmt(sec);
+          title = '上次同步 ' + new Date(ts).toLocaleString();
+        }
+      }
+    } else {
+      var lp = parseInt(localStorage.getItem('cfw_sync_last_push_v1') || '0', 10);
+      if (lp > 0) {
+        var s2 = Math.max(0, Math.floor((Date.now() - lp) / 1000));
+        txt = fmt(s2);
+        title = '上次推送 ' + new Date(lp).toLocaleString();
+      } else {
+        txt = '等待中'; cls = 'sync-idle';
+      }
+    }
+    ind.innerHTML = '<span class="sync-dot ' + cls + '"></span><span class="sync-text">' + txt + '</span>';
+    ind.title = title;
+  }
+  if (window.__sync && typeof window.__sync.onStatus === 'function') {
+    try { window.__sync.onStatus(refresh); } catch(e){}
+  }
+  window.addEventListener('sync:status', refresh);
+  window.addEventListener('storage', function(e){ if (e.key && e.key.indexOf('cfw_sync_') === 0) refresh(); });
+  setInterval(refresh, 15000);
+  setTimeout(refresh, 200);
+  setTimeout(refresh, 1500);
+  setTimeout(refresh, 4000);
+})();
+</script>
+
+<!-- 脚本加载顺序:鉴权 → 同步 → 基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
+<!-- auth.js 必须最早加载:它拦截全局 fetch,给 /sync 和 /api/* 自动注入 Authorization header -->
+<script src="/auth.js"></script>
 <script src="/config.js"></script>
 <script src="/character.js"></script>
 <script src="/multi-agent.js"></script>
 <script src="/props.js"></script>
 <script src="/theme.js"></script>
+<!-- sync.js 在 app.js 之前:启动时如已启用云同步会先 pull,避免 app.js init 读到老数据 -->
+<script src="/sync.js"></script>
 <script src="/app.js"></script>
+<!-- 鱼缸引擎 V3:必须在 app.js 之后(依赖 window.__app.sendOne / abortCurrent / injectModeratorMsg) -->
+<script src="/fishbowl-engine.js"></script>
 <script src="/presets-ui.js"></script>
 <script src="/cost-log-ui.js"></script>
 <script src="/chat-ux.js"></script>
+<!-- 4.7 解限编辑器（Unlimited Editor）：4-tab Modal · LS+IDB 混合存储 -->
+<script src="/unlimited-editor.js"></script>
+<!-- 4.6 鱼缸控制台点击 header 折叠 · 手机默认折起避免遮挡消息 -->
+<script>
+(function(){
+  var isMobile = function(){ return window.matchMedia('(max-width: 1023px)').matches; };
+  // 事件委托：鱼缸面板是 multi-agent.js 动态创建的，DOM 随时重建
+  document.addEventListener('click', function(e){
+    var header = e.target.closest && e.target.closest('.fishbowl-side-panel .fb-side-header');
+    if (!header) return;
+    var panel = header.closest('.fishbowl-side-panel');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+  });
+  // 鱼缸面板首次出现时，手机默认折起
+  var seen = new WeakSet();
+  var obs = new MutationObserver(function(){
+    var panel = document.querySelector('.fishbowl-side-panel');
+    if (!panel || seen.has(panel)) return;
+    seen.add(panel);
+    if (isMobile()) panel.classList.add('collapsed');
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+  // 手机↔桌面跳变时 reset 折叠状态（桌面不需要隐默折起）
+  var lastMobile = isMobile();
+  window.addEventListener('resize', function(){
+    var nowMobile = isMobile();
+    if (nowMobile === lastMobile) return;
+    lastMobile = nowMobile;
+    var panel = document.querySelector('.fishbowl-side-panel');
+    if (!panel) return;
+    if (nowMobile) panel.classList.add('collapsed');
+    else panel.classList.remove('collapsed');
+  });
+})();
+</script>
 </body>
 </html>
