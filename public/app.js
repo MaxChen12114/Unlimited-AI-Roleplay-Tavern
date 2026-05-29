@@ -849,6 +849,9 @@
               if (partialStream) partialStream.full = full;
               // 4.18: 微信模式流式期间不写未处理文本到 bubble (含 [^数字]: 前缀 + || 未拆分)
               // 只显示「正在输入···」typing 动画，结束后再 strip + 拆条 + 按字数 delay 逐条 push
+              // 4.18 (v8): wechat + fishbowl 共存——streaming 期间 wechat 仍显 typing,
+              // 拆条改成 await delay(下面那段),让 sendOne 等所有 push 完才 resolve
+              // fishbowl 接龙 await sendOne 自动等齐,不再错位且保留「几个 AI 群聊」玩法
               const _rs = localStorage.getItem("cfw_reply_style_v1") || "default";
               if (_rs === "wechat") {
                 if (!aiRow.bubble.classList.contains("wechat-typing")) {
@@ -930,7 +933,9 @@
 
     // 2026-05-29 / 4.18: 微信风格拆气泡
     // session 里还是存完整拼接串(含 ||),避免下轮 turn 模型看不到连发样式上下文
-    // 4.18: 取消 typing 动画 → 按上一条字数 * 60ms/字 逐条 delay push (模拟真实打字节奏)
+    // 4.18 (v8): 拆条从 setTimeout 改成 await delay——sendOne 等所有 push 完才 resolve
+    // 初衷: fishbowl 接龙 await sendOne 等齐,wechat + 接龙共存不再错位
+    // 负作用: 单 agent 模式下用户要等所有 delay 才能发下一条(原本就是这个体验,wechat 本意)
     const _replyStyle = localStorage.getItem("cfw_reply_style_v1") || "default";
     if (_replyStyle === "wechat") {
       aiRow.bubble.classList.remove("wechat-typing");
@@ -940,22 +945,23 @@
           // 第一条立刻显示
           aiRow.bubble.textContent = _parts[0];
           if (isNearBottom()) scrollToBottom();
-          // 后续条按累计「上一条字数 * 60ms」延迟逐条 push (最少 300ms,避免连发太快不真实)
-          let _acc = 0;
+          // 后续条按「上一条字数 * 60ms」延迟逐条 push (最少 300ms,避免连发太快不真实)
+          // 改 await——sendOne 等所有 push 完才 return,fishbowl 接龙不再错位
           for (let i = 1; i < _parts.length; i++) {
-            _acc += Math.max(300, _parts[i - 1].length * 60);
+            const _delay = Math.max(300, _parts[i - 1].length * 60);
+            await new Promise(r => setTimeout(r, _delay));
+            // 中途被中断(myGen 变了 / 鱼缸 stop)则后续不 push,避免鬼 row
+            if (myGen !== sendGen) break;
             const _piece = _parts[i];
             const _side = opts0.side || null;
-            setTimeout(() => {
-              const _r = makeRow("assistant", { side: _side });
-              _r.bubble.textContent = _piece;
-              _r.stats.textContent = "";
-              if (window.__character && window.__character.decorateAiRow) {
-                window.__character.decorateAiRow(_r.rowEl);
-              }
-              setStreamingUI(_r.rowEl, false);
-              if (isNearBottom()) scrollToBottom();
-            }, _acc);
+            const _r = makeRow("assistant", { side: _side });
+            _r.bubble.textContent = _piece;
+            _r.stats.textContent = "";
+            if (window.__character && window.__character.decorateAiRow) {
+              window.__character.decorateAiRow(_r.rowEl);
+            }
+            setStreamingUI(_r.rowEl, false);
+            if (isNearBottom()) scrollToBottom();
           }
         } else {
           aiRow.bubble.textContent = full;
