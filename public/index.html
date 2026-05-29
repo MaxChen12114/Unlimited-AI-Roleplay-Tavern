@@ -37,6 +37,21 @@
       } catch (e) {}
     })();
   </script>
+  <!-- 2026-05-29 FOUC-safe 聊天区个性化:启动立即应用字号/字体/隐藏按钮/wechat 风格 -->
+  <script>
+    (function(){
+      try {
+        var ls = localStorage, html = document.documentElement;
+        if (ls.getItem('cfw_hide_msg_actions_v1') === '1') html.classList.add('hide-msg-actions');
+        var rs = ls.getItem('cfw_reply_style_v1') || 'default';
+        if (rs === 'wechat') html.setAttribute('data-reply-style', 'wechat');
+        var fs = parseInt(ls.getItem('cfw_chat_font_size_v1') || '15', 10);
+        if (fs >= 12 && fs <= 28) html.style.setProperty('--chat-font-size', fs + 'px');
+        var ff = ls.getItem('cfw_chat_font_family_v1') || '';
+        if (ff) html.style.setProperty('--chat-font-family', ff);
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 <!-- 4.3 双侧栏布局:.app-shell grid 包左侧栏 + #app(中) + 右侧栏 -->
@@ -300,6 +315,12 @@
               <label for="strictRoleplayToggle">严格角色扮演(注入完整人设铁则)</label>
             </div>
           </div>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="hideMsgActionsToggle">
+              <label for="hideMsgActionsToggle">隐藏消息行下方的小按钮(重试/删除/复制)</label>
+            </div>
+          </div>
           <div style="margin-top:12px;">
             <div style="font-size:12px;color:#999;margin-bottom:8px;">NSFW 等级</div>
             <div class="nsfw-options">
@@ -351,6 +372,80 @@
                 styleSel.value = (saved === 'wechat' || saved === 'verbose') ? saved : 'default';
                 styleSel.addEventListener('change', function(){
                   localStorage.setItem('cfw_reply_style_v1', styleSel.value);
+                  // wechat 联动 html[data-reply-style] 让 CSS 自动隐藏小按钮
+                  if (styleSel.value === 'wechat') document.documentElement.setAttribute('data-reply-style', 'wechat');
+                  else document.documentElement.removeAttribute('data-reply-style');
+                });
+              }
+            })();
+          </script>
+        </div>
+
+        <!-- 2026-05-29: 显示设置 卡 (字号 / 字体 / 隐藏小按钮 monitor) -->
+        <div class="card">
+          <h4>✨ 显示设置(Display)</h4>
+          <p>
+            调整聊天区字号和字体。<b>仅本设备生效</b>(不进云同步)，刷新页面也会保留。隐藏小按钮 toggle 在上面「互动模式」卡。
+          </p>
+          <div style="margin-top:8px;">
+            <label for="chatFontSizeRange" style="display:flex;justify-content:space-between;font-size:12px;color:#999;margin-bottom:6px;">
+              <span>聊天字号</span>
+              <span id="chatFontSizeLabel" style="font-variant-numeric:tabular-nums;">15px</span>
+            </label>
+            <input type="range" id="chatFontSizeRange" min="12" max="22" step="1" value="15" style="width:100%;">
+          </div>
+          <div style="margin-top:14px;">
+            <div style="font-size:12px;color:#999;margin-bottom:6px;">聊天字体</div>
+            <select id="chatFontFamilySel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;">
+              <option value="">系统默认 · 苹方/微软雅黑</option>
+              <option value='"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'>圆体 · PingFang</option>
+              <option value='"Noto Serif SC", "Source Han Serif SC", "SimSun", serif'>宋体 · Noto Serif</option>
+              <option value='"Kaiti SC", "STKaiti", KaiTi, serif'>楷体 · Kaiti</option>
+              <option value='FangSong, STFangsong, serif'>仿宋 · FangSong</option>
+              <option value='ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'>等宽 · Monospace</option>
+            </select>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:10px;line-height:1.6;">
+            💡 聊天区气泡跳动同步梳理主题请到「外观风格」卡切主题；wechat 连发模式会自动隐藏小按钮(同时被 toggle 接管)。
+          </div>
+          <script>
+            (function(){
+              var html = document.documentElement;
+              var hideEl = document.getElementById('hideMsgActionsToggle');
+              if (hideEl) {
+                hideEl.checked = localStorage.getItem('cfw_hide_msg_actions_v1') === '1';
+                hideEl.addEventListener('change', function(){
+                  localStorage.setItem('cfw_hide_msg_actions_v1', hideEl.checked ? '1' : '0');
+                  html.classList.toggle('hide-msg-actions', hideEl.checked);
+                });
+              }
+              var sizeEl = document.getElementById('chatFontSizeRange');
+              var sizeLb = document.getElementById('chatFontSizeLabel');
+              if (sizeEl) {
+                var fs = parseInt(localStorage.getItem('cfw_chat_font_size_v1') || '15', 10);
+                if (fs < 12 || fs > 22) fs = 15;
+                sizeEl.value = fs;
+                if (sizeLb) sizeLb.textContent = fs + 'px';
+                sizeEl.addEventListener('input', function(){
+                  var v = parseInt(sizeEl.value, 10) || 15;
+                  if (sizeLb) sizeLb.textContent = v + 'px';
+                  html.style.setProperty('--chat-font-size', v + 'px');
+                  localStorage.setItem('cfw_chat_font_size_v1', String(v));
+                });
+              }
+              var famEl = document.getElementById('chatFontFamilySel');
+              if (famEl) {
+                var ff = localStorage.getItem('cfw_chat_font_family_v1') || '';
+                var matched = false;
+                Array.prototype.forEach.call(famEl.options, function(o){
+                  if (o.value === ff) matched = true;
+                });
+                famEl.value = matched ? ff : '';
+                famEl.addEventListener('change', function(){
+                  var v = famEl.value || '';
+                  localStorage.setItem('cfw_chat_font_family_v1', v);
+                  if (v) html.style.setProperty('--chat-font-family', v);
+                  else html.style.removeProperty('--chat-font-family');
                 });
               }
             })();

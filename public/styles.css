@@ -3292,44 +3292,7 @@ html[data-theme="lewd-doll"] #topbar #personaToggle:hover {
   letter-spacing: .3px;
 }
 
-/* 4.6-B 鱼缸控制台可折叠（主要针对手机但桌面也能收起） */
-.fishbowl-side-panel .fb-side-header {
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.fishbowl-side-panel .fb-side-header::after {
-  content: "▾";
-  font-size: 12px;
-  opacity: .6;
-  transition: transform .15s ease;
-  flex: 0 0 auto;
-}
-.fishbowl-side-panel.collapsed .fb-side-header::after {
-  transform: rotate(-90deg);
-}
-.fishbowl-side-panel.collapsed > *:not(.fb-side-header) {
-  display: none !important;
-}
-.fishbowl-side-panel.collapsed {
-  padding: 8px 12px !important;
-  max-height: none !important;
-  gap: 0 !important;
-}
-
-@media (max-width: 1023px) {
-  .fishbowl-side-panel.collapsed {
-    padding: 6px 12px !important;
-  }
-  /* 手机上折叠后仅一行高，不再遮挡上方 AI 消息 */
-  .fishbowl-side-panel.collapsed .fb-side-header {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-}
+/* 4.10 删除 4.6-B 鱼缸控制台折叠 CSS：折叠态让 panel 只显 header 「一条」遮思考按钮，与 4.8-A body.fishbowl-shown 整体 toggle 冲突。完全删掉 .collapsed 规则 + ▾ icon + cursor pointer。由 4.8-A display:none/flex 兜底（手机点鱼缸 tab 直接整面板隐藏，无任何残影）。 */
 
 /* ═══════════════════════════════════════════════
    Phase 4 阶段 4.7 · 解限编辑器（Unlimited Editor）
@@ -3718,6 +3681,56 @@ html[data-theme="lewd-doll"] .ue-badge {
   #thinkToggle { padding: 3px 8px; }
 
   #bottom-spacer { height: 100px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   Phase 4 阶段 4.15 · 聊天区个性化(字号/字体/隐藏按钮) + msg-action-btn lewd 主题增强
+   - --chat-font-size / --chat-font-family CSS 变量
+   - html.hide-msg-actions / html[data-reply-style="wechat"] 隐藏小按钮
+   - lewd-peach / lewd-doll msg-action-btn 配色加强(原色调对比度低于主题背景)
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --chat-font-size: 15px;
+  --chat-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.bubble {
+  font-size: var(--chat-font-size);
+  font-family: var(--chat-font-family);
+}
+
+/* 隐藏消息行操作按钮(用户手动开关 或 wechat 模式自动) */
+html.hide-msg-actions .my-action-btns,
+html[data-reply-style="wechat"] .my-action-btns {
+  display: none !important;
+}
+
+/* lewd-peach msg-action-btn 升级:原 rgba(74,21,48,.45) 背景过暗看不出主题 */
+html[data-theme="lewd-peach"] .msg-action-btn {
+  background: rgba(255, 107, 157, .14);
+  border: 1px solid rgba(255, 107, 157, .42);
+  color: #FFB5C5;
+}
+html[data-theme="lewd-peach"] .msg-action-btn:hover {
+  background: rgba(255, 107, 157, .32);
+  color: #FFE8EF;
+  border-color: rgba(255, 107, 157, .7);
+  box-shadow: 0 2px 8px rgba(255, 107, 157, .25);
+}
+
+/* lewd-doll msg-action-btn 升级:加深酒红描边提升亮底上的识别度 */
+html[data-theme="lewd-doll"] .msg-action-btn {
+  background: rgba(255, 255, 255, .92);
+  border: 1px solid rgba(224, 48, 96, .38);
+  color: #8B0033;
+  font-weight: 500;
+}
+html[data-theme="lewd-doll"] .msg-action-btn:hover {
+  background: rgba(224, 48, 96, .14);
+  color: #4A0820;
+  border-color: rgba(224, 48, 96, .68);
+  box-shadow: 0 2px 8px rgba(224, 48, 96, .25);
 }
 
 
