@@ -416,13 +416,32 @@
     }
   }
 
+  // 4.17: 按当前角色卡分槽存储，避免不同角色对话互相污染。
+  // 存储结构: { [charId | "__none__"]: messages[] }
+  // 老格式(整段 array)自动迁移到 "__none__" 槽
+  function currentSlotKey() {
+    const c = window.__character && window.__character.getActiveCard ? window.__character.getActiveCard() : null;
+    return c && c.id ? c.id : "__none__";
+  }
+  function loadAllSessions() {
+    try {
+      const raw = localStorage.getItem(LS_CHAT_SESSION);
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      if (Array.isArray(obj)) return { "__none__": obj };
+      return (obj && typeof obj === "object") ? obj : {};
+    } catch { return {}; }
+  }
   function persistSessionIfEnabled() {
     if (!historyEnabled) return;
     try {
-      let data = JSON.stringify(session);
+      const all = loadAllSessions();
+      all[currentSlotKey()] = session;
+      let data = JSON.stringify(all);
       while (data.length > 2 * 1024 * 1024 && session.length > 2) {
         session.splice(0, 2);
-        data = JSON.stringify(session);
+        all[currentSlotKey()] = session;
+        data = JSON.stringify(all);
       }
       localStorage.setItem(LS_CHAT_SESSION, data);
     } catch {}
@@ -430,11 +449,10 @@
 
   function restoreSessionIfEnabled() {
     if (!historyEnabled) return;
-    const raw = localStorage.getItem(LS_CHAT_SESSION);
-    if (!raw) return;
+    const all = loadAllSessions();
+    const arr = all[currentSlotKey()];
+    if (!Array.isArray(arr)) return;
     try {
-      const arr = JSON.parse(raw);
-      if (!Array.isArray(arr)) return;
       session.length = 0;
       for (const m of arr) {
         if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string") continue;
@@ -514,8 +532,16 @@
     if (historyEnabled) persistSessionIfEnabled();
   });
   clearHistoryBtn.addEventListener("click", () => {
-    if (!confirm("确定清除本地历史？\n只会删除对话记录与剧情摘要，不会影响网页自定义人物模板。")) return;
-    localStorage.removeItem(LS_CHAT_SESSION);
+    if (!confirm("确定清除本地历史？\n只会删除【当前角色】的对话记录与剧情摘要，其他角色对话保留。")) return;
+    // 4.17: 分槽存储，只清当前角色的槽
+    try {
+      const all = loadAllSessions();
+      delete all[currentSlotKey()];
+      if (Object.keys(all).length === 0) localStorage.removeItem(LS_CHAT_SESSION);
+      else localStorage.setItem(LS_CHAT_SESSION, JSON.stringify(all));
+    } catch {
+      localStorage.removeItem(LS_CHAT_SESSION);
+    }
     localStorage.removeItem(LS_PRIOR_SUMMARY);
     priorSummary = "";
     session.length = 0;
@@ -979,9 +1005,27 @@
     restoreSessionIfEnabled();
     renderSummaryChip();
     scrollToBottom();
-    // 顶栏初始横向滚到末尾（让最右侧按钮可见）— 搬自原 topbar-controls.js
     const tbs = document.getElementById("topbarScroll");
     if (tbs) tbs.scrollLeft = tbs.scrollWidth;
+    // 4.17: 切换角色卡时 swap 聊天槽，避免不同角色对话互相污染
+    let lastSlotKey = currentSlotKey();
+    window.addEventListener("character:changed", () => {
+      const curKey = currentSlotKey();
+      if (lastSlotKey === curKey) return;
+      if (historyEnabled) {
+        try {
+          const all = loadAllSessions();
+          all[lastSlotKey] = session.map(m => ({...m}));
+          localStorage.setItem(LS_CHAT_SESSION, JSON.stringify(all));
+        } catch {}
+      }
+      session.length = 0;
+      clearUIRows();
+      lastSlotKey = curKey;
+      if (historyEnabled) restoreSessionIfEnabled();
+      updateSpacer();
+      scrollToBottom();
+    });
   }
 
   // 暴露给 multi-agent.js / fishbowl-engine.js

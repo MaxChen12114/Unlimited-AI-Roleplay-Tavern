@@ -13,6 +13,12 @@
   const SYNC_ENABLED_KEY = "cfw_sync_enabled_v1";
   const LAST_PUSH_KEY    = "cfw_sync_last_push_v1";
   const LAST_PULL_KEY    = "cfw_sync_last_pull_v1";
+  // 4.17 新增: 同步聊天历史 toggle(默认 OFF) / 暂停同步 / push 计数(KV 配额监控)
+  const INCLUDE_CHAT_KEY   = "cfw_sync_include_chat_v1";
+  const PAUSE_KEY          = "cfw_sync_paused_v1";
+  const PUSH_COUNT_KEY     = "cfw_sync_push_count_v1";
+  const PUSH_COUNT_DAY_KEY = "cfw_sync_push_count_day_v1";
+  const PUSH_DAILY_WARN    = 800; // Cloudflare KV 免费层 1000 writes/day,到 800 触发告警
 
   // 需同步的精确 LS key【示例，代码里以 fallback全量法为准】
   const LS_EXPLICIT = [
@@ -21,7 +27,8 @@
     "tavern_active_props_v1", "tavern_active_scene_v1", "tavern_aff_pending_v1",
     "cfw_prompt_presets_v1", "cfw_cost_log_v1", "tavern_multi_agent_mode_v1",
     "cfw_mode", "cfw_model", "cfw_use_builtin", "cfw_history_enabled",
-    "cfw_chat_session_v1", "cfw_prompt_enabled", "cfw_custom_prompt_v1",
+    "cfw_prompt_enabled", "cfw_custom_prompt_v1",
+    // 4.17: cfw_chat_session_v1 已移出默认白名单,改由 includeChat() toggle 控制(默认 OFF 避免跨设备覆盖)
   ];
   // 前缀匹配（多实例）
   const LS_PREFIXES = [
@@ -33,6 +40,7 @@
     "cfw_auth_token_v1",
     "cfw_chat_protect_v1",
     SYNC_ENABLED_KEY, LAST_PUSH_KEY, LAST_PULL_KEY,
+    INCLUDE_CHAT_KEY, PAUSE_KEY, PUSH_COUNT_KEY, PUSH_COUNT_DAY_KEY, // 4.17 同步控制开关本身不进同步
   ];
   // IndexedDB 数据库名列表
   const IDB_NAMES = ["tavern_chars_v2", "tavern_props_v1"];
@@ -54,6 +62,11 @@
       if (!k || seen.has(k) || PROTECTED.includes(k)) continue;
       if (LS_PREFIXES.some(p => k.startsWith(p))) out[k] = localStorage.getItem(k);
     }
+    // 4.17: 聊天历史按 includeChat toggle 控制 - 默认 OFF(避免跨设备覆盖)
+    if (includeChat()) {
+      const v = localStorage.getItem("cfw_chat_session_v1");
+      if (v !== null) out["cfw_chat_session_v1"] = v;
+    }
     return out;
   }
   function restoreLS(ls) {
@@ -69,6 +82,8 @@
     for (const k of toRemove) localStorage.removeItem(k);
     for (const k in ls) {
       if (PROTECTED.includes(k)) continue;
+      // 4.17: 远端有聊天 session 但本地未开 includeChat,跳过(避免另一台设备的聊天覆盖本地)
+      if (k === "cfw_chat_session_v1" && !includeChat()) continue;
       if (typeof ls[k] === "string") localStorage.setItem(k, ls[k]);
     }
   }
@@ -170,6 +185,25 @@
   function onStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); }
   function emit(status, detail) { for (const fn of listeners) { try { fn(status, detail); } catch {} } }
 
+  // 4.17: 同步聊天历史 toggle - 默认 OFF。配置类资产(角色卡/preset/费用)总是同步,聊天单独控制
+  function includeChat() { return localStorage.getItem(INCLUDE_CHAT_KEY) === "1"; }
+  function setIncludeChat(on) { localStorage.setItem(INCLUDE_CHAT_KEY, on ? "1" : "0"); }
+  // 4.17: 临时暂停 - markDirty 静默丢弃(已 schedule 的 timer 不取消,跑完即止)
+  function isPaused() { return localStorage.getItem(PAUSE_KEY) === "1"; }
+  function pause() { localStorage.setItem(PAUSE_KEY, "1"); emit("paused"); }
+  function resume() { localStorage.removeItem(PAUSE_KEY); emit("resumed"); }
+  // 4.17: KV 配额监控 - 当日累计到 800 次触发 warn 事件
+  function incrPushCount() {
+    const today = new Date().toISOString().slice(0, 10);
+    const prevDay = localStorage.getItem(PUSH_COUNT_DAY_KEY);
+    let n = parseInt(localStorage.getItem(PUSH_COUNT_KEY) || "0", 10);
+    if (prevDay !== today) { n = 0; localStorage.setItem(PUSH_COUNT_DAY_KEY, today); }
+    n += 1;
+    localStorage.setItem(PUSH_COUNT_KEY, String(n));
+    if (n === PUSH_DAILY_WARN) emit("warn", { reason: "kv-quota", today, count: n });
+    return n;
+  }
+
   // ─── debounce push ───
   let pushTimer = null;
   let pushing = false;
@@ -185,7 +219,8 @@
       localStorage.setItem(LAST_PUSH_KEY, String(res.savedAt || Date.now()));
       // 拉取时间也同步推进，避免下次启动倒拽自己刚 push 的数据
       localStorage.setItem(LAST_PULL_KEY, String(res.savedAt || Date.now()));
-      emit("synced", res);
+      const pushN = incrPushCount(); // 4.17: KV 配额监控
+      emit("synced", Object.assign({}, res, { pushCount: pushN }));
     } catch (e) {
       emit("error", e);
     } finally {
@@ -195,8 +230,9 @@
   }
   function markDirty() {
     if (!syncEnabled() || !token()) return;
+    if (isPaused()) return; // 4.17: 暂停中静默丢弃,不开计时器
     if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(() => { pushTimer = null; doPush(); }, 3000);
+    pushTimer = setTimeout(() => { pushTimer = null; doPush(); }, 30000); // 4.17: 3s → 30s 节省 KV 配额
   }
   async function pushNow() {
     if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
@@ -263,13 +299,19 @@
     markDirty, pushNow, pullFromKV, pullOnStartup,
     exportJSON, importJSON,
     syncEnabled, setSyncEnabled,
+    includeChat, setIncludeChat, // 4.17: 同步聊天历史 toggle
+    isPaused, pause, resume,     // 4.17: 暂停/恢复
     dumpAll, restoreAll,
     onStatus,
     getStatus: () => ({
       enabled: syncEnabled(),
       hasToken: !!token(),
+      paused: isPaused(),
+      includeChat: includeChat(),
       lastPush: parseInt(localStorage.getItem(LAST_PUSH_KEY) || "0", 10),
       lastPull: parseInt(localStorage.getItem(LAST_PULL_KEY) || "0", 10),
+      pushCount: parseInt(localStorage.getItem(PUSH_COUNT_KEY) || "0", 10),
+      pushCountDay: localStorage.getItem(PUSH_COUNT_DAY_KEY) || "",
     }),
   };
 

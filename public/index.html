@@ -43,9 +43,8 @@
       try {
         var ls = localStorage, html = document.documentElement;
         if (ls.getItem('cfw_hide_msg_actions_v1') === '1') html.classList.add('hide-msg-actions');
-        var rs = ls.getItem('cfw_reply_style_v1') || 'default';
-        if (rs === 'wechat') html.setAttribute('data-reply-style', 'wechat');
-        var fs = parseInt(ls.getItem('cfw_chat_font_size_v1') || '15', 10);
+        // 4.15 hotfix: 不再给 html 加 data-reply-style="wechat" — wechat 模式仅控拆气泲,不再隐藏小按钮(需隐藏请用上面独立 toggle)
+        var fs = parseInt(ls.getItem('cfw_chat_font_size_v1') || '13', 10);
         if (fs >= 12 && fs <= 28) html.style.setProperty('--chat-font-size', fs + 'px');
         var ff = ls.getItem('cfw_chat_font_family_v1') || '';
         if (ff) html.style.setProperty('--chat-font-family', ff);
@@ -90,7 +89,7 @@
       </a>
 
       <!-- 4.7 解限编辑器入口：项目灵魂的 JSON 资产编辑壳 -->
-      <button class="sidebar-btn" id="unlimitedEditorBtn" title="🛠 解限编辑器：编辑 Preset / 角色 / 世界观 / UI 配置的 JSON 资产，区别于正常聊天">
+      <button class="sidebar-btn" id="unlimitedEditorBtn" data-dev-only title="🛠 解限编辑器（开发者）：编辑 Preset / 角色 / 世界观 / UI 配置的 JSON 资产">
         <span class="sidebar-btn-icon">🛠</span>
         <span class="sidebar-btn-label">解限编辑器</span>
       </button>
@@ -159,6 +158,8 @@
             <div id="syncStatusIndicator" class="desktop-only" title="云同步状态">
               <span class="sync-dot sync-idle"></span><span class="sync-text">同步</span>
             </div>
+            <!-- 4.17: 暂停同步按钮(dev 可见),临时切断 markDirty 推送,避免乱聊污染 KV -->
+            <button class="iconbtn" id="syncPauseBtn" data-dev-only title="暂停/恢复云同步" aria-label="暂停同步">⏸</button>
 
             <button class="iconbtn" id="settingsBtn" title="Settings · 外观风格 / 本地历史 / 自定义模板">⚙️</button>
           </div>
@@ -193,7 +194,7 @@
           <div class="hint">本地数据保存在浏览器;启用云同步后也会上传到你的 Cloudflare KV</div>
         </div>
 
-        <div class="card">
+        <div class="card" data-dev-only>
           <h4>🔒 密码保护（Auth）</h4>
           <p>
             <b>云同步</b>永远需要密码（用 Cloudflare Secret <code>CHAT_PASSWORD</code> 鉴权）。
@@ -222,14 +223,42 @@
               <input type="checkbox" id="syncEnableToggle">
               <label for="syncEnableToggle">启用云同步</label>
             </div>
+            <!-- 4.17: 聊天历史默认不进同步,避免跨设备互相覆盖。开启后跨设备共享对话(仍按 last-write-wins) -->
+            <div class="toggle" style="margin-top:6px;">
+              <input type="checkbox" id="syncIncludeChatToggle">
+              <label for="syncIncludeChatToggle">同步聊天历史（默认关 · 开启=跨设备共享对话）</label>
+            </div>
             <div class="btns">
               <button class="smallbtn" id="syncNowBtn">↻ 立即同步</button>
-              <button class="smallbtn" id="syncExportBtn">📤 导出备份</button>
-              <button class="smallbtn" id="syncImportBtn">📥 导入备份</button>
+              <button class="smallbtn" id="syncExportBtn" data-dev-only>📤 导出备份</button>
+              <button class="smallbtn" id="syncImportBtn" data-dev-only>📥 导入备份</button>
               <input type="file" id="syncImportFile" accept=".json" style="display:none">
             </div>
           </div>
           <div id="syncStatus" style="font-size:11px;color:#888;margin-top:8px;"></div>
+          <div id="syncQuotaWarn" style="font-size:11px;color:#f80;margin-top:4px;display:none;"></div>
+          <script>
+            (function(){
+              // 4.17: 同步聊天历史 toggle 双向绑定 LS
+              var t=document.getElementById('syncIncludeChatToggle');
+              if(t){
+                t.checked=localStorage.getItem('cfw_sync_include_chat_v1')==='1';
+                t.addEventListener('change',function(){
+                  localStorage.setItem('cfw_sync_include_chat_v1',t.checked?'1':'0');
+                });
+              }
+              // KV 配额告警: 接 sync.js onStatus warn 事件
+              function wireWarn(){
+                if(!window.__sync||!window.__sync.onStatus)return setTimeout(wireWarn,500);
+                window.__sync.onStatus(function(s,d){
+                  if(s!=='warn'||!d||d.reason!=='kv-quota')return;
+                  var w=document.getElementById('syncQuotaWarn');
+                  if(w){w.style.display='block';w.textContent='⚠️ 今日已 push '+d.count+' 次到 KV (免费层 1000/日上限),可点顶栏 ⏸ 暂停同步避免超额';}
+                });
+              }
+              wireWarn();
+            })();
+          </script>
         </div>
 
         <div class="card">
@@ -327,7 +356,7 @@
               <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="0"><span>0 · 关闭</span></label>
               <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="1"><span>1 · 暗示</span></label>
               <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="2"><span>2 · 露骨</span></label>
-              <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="3"><span>3 · 完全开放</span></label>
+              <label class="nsfw-option" data-dev-only><input type="radio" name="cfwNsfwLevel" value="3"><span>3 · 完全开放（开发者）</span></label>
             </div>
           </div>
           <div style="margin-top:14px;">
@@ -372,9 +401,6 @@
                 styleSel.value = (saved === 'wechat' || saved === 'verbose') ? saved : 'default';
                 styleSel.addEventListener('change', function(){
                   localStorage.setItem('cfw_reply_style_v1', styleSel.value);
-                  // wechat 联动 html[data-reply-style] 让 CSS 自动隐藏小按钮
-                  if (styleSel.value === 'wechat') document.documentElement.setAttribute('data-reply-style', 'wechat');
-                  else document.documentElement.removeAttribute('data-reply-style');
                 });
               }
             })();
@@ -390,9 +416,9 @@
           <div style="margin-top:8px;">
             <label for="chatFontSizeRange" style="display:flex;justify-content:space-between;font-size:12px;color:#999;margin-bottom:6px;">
               <span>聊天字号</span>
-              <span id="chatFontSizeLabel" style="font-variant-numeric:tabular-nums;">15px</span>
+              <span id="chatFontSizeLabel" style="font-variant-numeric:tabular-nums;">13px</span>
             </label>
-            <input type="range" id="chatFontSizeRange" min="12" max="22" step="1" value="15" style="width:100%;">
+            <input type="range" id="chatFontSizeRange" min="12" max="22" step="1" value="13" style="width:100%;">
           </div>
           <div style="margin-top:14px;">
             <div style="font-size:12px;color:#999;margin-bottom:6px;">聊天字体</div>
@@ -422,12 +448,12 @@
               var sizeEl = document.getElementById('chatFontSizeRange');
               var sizeLb = document.getElementById('chatFontSizeLabel');
               if (sizeEl) {
-                var fs = parseInt(localStorage.getItem('cfw_chat_font_size_v1') || '15', 10);
-                if (fs < 12 || fs > 22) fs = 15;
+                var fs = parseInt(localStorage.getItem('cfw_chat_font_size_v1') || '13', 10);
+                if (fs < 12 || fs > 22) fs = 13;
                 sizeEl.value = fs;
                 if (sizeLb) sizeLb.textContent = fs + 'px';
                 sizeEl.addEventListener('input', function(){
-                  var v = parseInt(sizeEl.value, 10) || 15;
+                  var v = parseInt(sizeEl.value, 10) || 13;
                   if (sizeLb) sizeLb.textContent = v + 'px';
                   html.style.setProperty('--chat-font-size', v + 'px');
                   localStorage.setItem('cfw_chat_font_size_v1', String(v));
@@ -452,7 +478,7 @@
           </script>
         </div>
 
-        <div class="card">
+        <div class="card" data-dev-only>
           <h4>提示词预设库(Prompt Presets)</h4>
           <p>
             解限提示词 PROMPT_1/2/3 之后追加的语调约束层。启用的预设按顺序以空行拼接注入。
@@ -506,7 +532,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" data-dev-only>
           <h4>网页自定义人物模板(Web Custom Persona)</h4>
           <p>
             ⚠️ 仅当右上角为 <b>😇</b> <b>且未选择角色卡</b>时生效;<b>😈</b> 模式与<b>已选角色卡</b>时此处都会被忽略。<br>
@@ -747,6 +773,8 @@
 <!-- 脚本加载顺序:鉴权 → 同步 → 基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
 <!-- auth.js 必须最早加载:它拦截全局 fetch,给 /sync 和 /api/* 自动注入 Authorization header -->
 <script src="/auth.js"></script>
+<!-- 4.17: dev.js 必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入 -->
+<script src="/dev.js"></script>
 <script src="/config.js"></script>
 <script src="/character.js"></script>
 <script src="/multi-agent.js"></script>
