@@ -9,6 +9,7 @@ import {
   PROMPT_2,
   PROMPT_3,
 } from "./config.js";
+import { handleImageRequest } from "./image-routes.js";
 
 const NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions";
@@ -301,6 +302,126 @@ async function handleSync(request, env) {
       "application/json; charset=utf-8"
     );
   }
+  // 4.21 P2 删云端: DELETE /sync → 删除 main blob KV key (全局清空云端的一半)
+  if (request.method === "DELETE") {
+    await env.TAVERN_SYNC.delete(KEY);
+    return resp(
+      JSON.stringify({ ok: true, deleted: true, savedAt: Date.now() }),
+      "application/json; charset=utf-8"
+    );
+  }
+  return resp("Method not allowed", "text/plain; charset=utf-8", 405);
+}
+
+// 4.20: 费用独立同步 (/sync/cost) - 防止 main blob last-write-wins 跨设备覆盖 cost
+// 服务端做 per-day per-field max merge,即使两台设备并发 PUT 也不会丢数据,响应返回 merged 全量供客户端二次落地
+async function handleSyncCost(request, env) {
+  if (checkAuth(request, env) !== true) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
+  if (!env.TAVERN_SYNC) {
+    return resp("KV namespace 'TAVERN_SYNC' not bound.", "text/plain; charset=utf-8", 500);
+  }
+  const KEY = "user:default:cost";
+  if (request.method === "GET") {
+    const raw = await env.TAVERN_SYNC.get(KEY);
+    return resp(raw || "null", "application/json; charset=utf-8");
+  }
+  if (request.method === "PUT") {
+    const body = await request.text();
+    if (!body) return resp("Empty body", "text/plain; charset=utf-8", 400);
+    if (body.length > 512 * 1024) return resp("Body too large (>512KB)", "text/plain; charset=utf-8", 413);
+    let incoming;
+    try { incoming = JSON.parse(body); } catch { return resp("Bad JSON", "text/plain; charset=utf-8", 400); }
+    if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+      return resp("Body must be object", "text/plain; charset=utf-8", 400);
+    }
+    const existing = await env.TAVERN_SYNC.get(KEY);
+    let prev = {};
+    if (existing) {
+      try {
+        prev = JSON.parse(existing);
+        if (!prev || typeof prev !== "object" || Array.isArray(prev)) prev = {};
+      } catch { prev = {}; }
+    }
+    const merged = {};
+    const days = new Set([...Object.keys(prev), ...Object.keys(incoming)]);
+    for (const day of days) {
+      const a = prev[day] || {};
+      const b = incoming[day] || {};
+      merged[day] = {
+        cost: Math.max(a.cost || 0, b.cost || 0),
+        prompt: Math.max(a.prompt || 0, b.prompt || 0),
+        completion: Math.max(a.completion || 0, b.completion || 0),
+        requests: Math.max(a.requests || 0, b.requests || 0),
+      };
+    }
+    const mergedJson = JSON.stringify(merged);
+    await env.TAVERN_SYNC.put(KEY, mergedJson);
+    return resp(
+      JSON.stringify({ ok: true, savedAt: Date.now(), days: Object.keys(merged).length, size: mergedJson.length, merged }),
+      "application/json; charset=utf-8"
+    );
+  }
+  // 4.21 P2 删云端: DELETE /sync/cost → 删除 cost KV key (全局清空云端的另一半)
+  if (request.method === "DELETE") {
+    await env.TAVERN_SYNC.delete(KEY);
+    return resp(
+      JSON.stringify({ ok: true, deleted: true, savedAt: Date.now() }),
+      "application/json; charset=utf-8"
+    );
+  }
+  return resp("Method not allowed", "text/plain; charset=utf-8", 405);
+}
+
+// 4.21-F: 排除清单独立同步通道 (/sync/exclude) - 让「只清云端/恢复」跨设备生效
+// registry = { entries: { "<kind>:<key>": {kind,key,state:"excluded"|"restored",ts} } }
+// 服务端按条目 ts 做 LWW 合并(谁后操作谁生效),响应返回 merged 全量供客户端二次落地
+async function handleSyncExclude(request, env) {
+  if (checkAuth(request, env) !== true) {
+    return resp("Unauthorized", "text/plain; charset=utf-8", 401);
+  }
+  if (!env.TAVERN_SYNC) {
+    return resp("KV namespace 'TAVERN_SYNC' not bound.", "text/plain; charset=utf-8", 500);
+  }
+  const KEY = "user:default:exclude";
+  if (request.method === "GET") {
+    const raw = await env.TAVERN_SYNC.get(KEY);
+    return resp(raw || "null", "application/json; charset=utf-8");
+  }
+  if (request.method === "PUT") {
+    const body = await request.text();
+    if (!body) return resp("Empty body", "text/plain; charset=utf-8", 400);
+    if (body.length > 256 * 1024) return resp("Body too large (>256KB)", "text/plain; charset=utf-8", 413);
+    let incoming;
+    try { incoming = JSON.parse(body); } catch { return resp("Bad JSON", "text/plain; charset=utf-8", 400); }
+    const inEntries = (incoming && typeof incoming === "object" && incoming.entries && typeof incoming.entries === "object") ? incoming.entries : {};
+    const existing = await env.TAVERN_SYNC.get(KEY);
+    let prevEntries = {};
+    if (existing) {
+      try { const p = JSON.parse(existing); if (p && p.entries && typeof p.entries === "object") prevEntries = p.entries; } catch {}
+    }
+    const merged = {};
+    const ids = new Set([...Object.keys(prevEntries), ...Object.keys(inEntries)]);
+    for (const id of ids) {
+      const a = prevEntries[id], b = inEntries[id];
+      const aok = a && typeof a.ts === "number";
+      const bok = b && typeof b.ts === "number";
+      if (aok && bok) merged[id] = b.ts >= a.ts ? b : a;
+      else merged[id] = aok ? a : b;
+    }
+    const out = { entries: merged };
+    const outJson = JSON.stringify(out);
+    await env.TAVERN_SYNC.put(KEY, outJson);
+    return resp(
+      JSON.stringify({ ok: true, savedAt: Date.now(), count: Object.keys(merged).length, merged: out }),
+      "application/json; charset=utf-8"
+    );
+  }
+  if (request.method === "DELETE") {
+    await env.TAVERN_SYNC.delete(KEY);
+    return resp(JSON.stringify({ ok: true, deleted: true, savedAt: Date.now() }), "application/json; charset=utf-8");
+  }
   return resp("Method not allowed", "text/plain; charset=utf-8", 405);
 }
 
@@ -435,7 +556,16 @@ async function handleChat(request, env) {
   const topic = typeof payload?.topic === "string" ? payload.topic : "";
   // Phase 4 阶段 6：提示词预设库（前端已 join('\n\n') 成一整段，worker 只负责追加在系统提示末尾）
   // 红线：PROMPT_1/2/3 解限 base 一字不改，本字段只能追加，不能替换
-  const extraSystemPrompts = typeof payload?.extraSystemPrompts === "string" ? payload.extraSystemPrompts.trim() : "";
+  let extraSystemPrompts = typeof payload?.extraSystemPrompts === "string" ? payload.extraSystemPrompts.trim() : "";
+  // 4.21 占位符宏替换: 预设(starter-presets.json / 自定义)中的 char / user 替换为实际名字
+  // 红线无关: 只作用于 extraSystemPrompts 追加层, 不触碰 PROMPT_1/2/3 解限 base
+  if (extraSystemPrompts) {
+    const _charName = (characterCard && typeof characterCard.name === "string" && characterCard.name.trim()) ? characterCard.name.trim() : "角色";
+    const _userName = (typeof payload?.userName === "string" && payload.userName.trim()) ? payload.userName.trim() : "用户";
+    extraSystemPrompts = extraSystemPrompts
+      .replace(/\{\{\s*char\s*\}\}/gi, _charName)
+      .replace(/\{\{\s*user\s*\}\}/gi, _userName);
+  }
   // 2026-05-29: 严格角色扮演开关 + NSFW 等级 (lewd 模式联动)
   // strictRoleplay 默认 false (解限优先); nsfwLevel 默认 0
   const strictRoleplay = payload?.strictRoleplay === true;
@@ -672,9 +802,23 @@ export default {
       return handleSummarize(request, env);
     }
 
-    if ((request.method === "GET" || request.method === "PUT") && url.pathname === "/sync") {
+    if ((request.method === "GET" || request.method === "PUT" || request.method === "DELETE") && url.pathname === "/sync") {
       return handleSync(request, env);
     }
+
+    // 4.20: 费用独立同步通道,per-day per-field max merge,跨设备并发 PUT 不丢数据
+    if ((request.method === "GET" || request.method === "PUT" || request.method === "DELETE") && url.pathname === "/sync/cost") {
+      return handleSyncCost(request, env);
+    }
+
+    // 4.21-F: 排除清单独立同步通道,服务端按条目 ts LWW 合并,跨设备生效
+    if ((request.method === "GET" || request.method === "PUT" || request.method === "DELETE") && url.pathname === "/sync/exclude") {
+      return handleSyncExclude(request, env);
+    }
+
+    // 图像侧统一代理:/img/* (代理 Gitee + /img/dl 下载 + /img/r2 + /img/gallery);非 /img/* 返回 null 交回静态兜底
+    const imgResp = await handleImageRequest(request, env);
+    if (imgResp) return imgResp;
 
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
       return env.ASSETS.fetch(request);

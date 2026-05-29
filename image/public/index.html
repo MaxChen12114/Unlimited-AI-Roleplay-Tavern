@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Image View</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="topbar-left">
+        <div class="brand-mark">M</div>
+        <div class="h1">Image View</div>
+      </div>
+
+      <div class="topbar-right">
+        <a
+          class="top-icon-btn"
+          href="https://github.com/MaxChen12114/Unlimited-AI-Roleplay-Tavern"
+          target="_blank"
+          rel="noopener"
+          aria-label="GitHub 仓库"
+          title="GitHub 仓库"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 0 0 7.86 10.92c.58.11.79-.25.79-.56v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.68-1.27-1.68-1.04-.72.08-.71.08-.71 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.67 1.25 3.32.96.1-.74.4-1.25.72-1.54-2.56-.29-5.25-1.28-5.25-5.72 0-1.27.46-2.3 1.19-3.12-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.19 1.19a11.1 11.1 0 0 1 5.8 0c2.22-1.5 3.19-1.19 3.19-1.19.63 1.58.23 2.75.11 3.04.74.82 1.19 1.85 1.19 3.12 0 4.45-2.7 5.43-5.28 5.72.41.35.78 1.05.78 2.11v3.12c0 .31.21.68.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+
+        <div class="status">
+          <span class="badge" id="statusBadge">准备就绪 / Ready</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar-sub">
+      <span class="api-label">API 注册地址:</span>
+      <span class="mono api-link">https://ai.gitee.com/serverless-api</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>1. 输入 API Key / Enter API Key</h2>
+      <div class="row">
+        <input id="apiKey" class="input" placeholder="Bearer Token" />
+        <label class="chk">
+          <input type="checkbox" id="rememberKey" />
+          记住（localStorage）
+        </label>
+        <button class="btn" id="btnClearKey">清除</button>
+      </div>
+      <div class="hint">
+        提示：本工具默认通过同站点的 <span class="mono">/img/v1/*</span> 代理转发到 <span class="mono">https://ai.gitee.com/v1</span>，避免浏览器 CORS 限制。
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 选择模型 / Select Model</h2>
+      <div class="row">
+        <select id="modelSel" class="input">
+          <option value="z-image">z-image（文生图 / Text-to-Image）</option>
+          <option value="Edit-2511">Edit-2511（图像编辑 / Image Edit）</option>
+          <option value="Wan2.2-I2V-A14B">Wan2.2-I2V-A14B（图生视频 / Image-to-Video）</option>
+          <option value="HunyuanVideo-1.5">HunyuanVideo-1.5（文生视频 / Text-to-Video）</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="card model-panel" id="panelZ">
+      <h2>z-image（文生图 / Text-to-Image）</h2>
+
+      <label class="lab">提示词 Prompt（中/英均可 / CN&EN OK）</label>
+      <textarea id="zPrompt" class="textarea" rows="6" placeholder="例如：一只戴墨镜的柴犬，赛博朋克风，超清"></textarea>
+
+      <div class="grid2">
+        <div>
+          <label class="lab">分辨率 Resolution</label>
+          <select id="zRes" class="input"></select>
+        </div>
+        <div>
+          <label class="lab">张数 n（1-4）</label>
+          <input id="zN" class="input" type="number" min="1" max="4" value="1" />
+        </div>
+      </div>
+
+      <div class="hint">
+        建议：2048 更清晰但更慢更贵；n&gt;1 会输出多张。<br/>
+        Tip: 2048 is sharper but slower/more expensive; n&gt;1 outputs multiple images.
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="btnZRun">执行 / Generate</button>
+      </div>
+    </section>
+
+    <section class="card model-panel" id="panelEdit">
+      <h2>Edit-2511（图像编辑 / Image Edit）</h2>
+
+      <div class="grid2">
+        <div>
+          <label class="lab">图1 Image 1</label>
+          <input id="editImg1" class="input" type="file" accept="image/png,image/jpeg,image/webp" />
+        </div>
+        <div>
+          <label class="lab">图2 Image 2</label>
+          <input id="editImg2" class="input" type="file" accept="image/png,image/jpeg,image/webp" />
+        </div>
+      </div>
+
+      <label class="lab">提示词 Prompt</label>
+      <textarea id="editPrompt" class="textarea" rows="5" placeholder="描述你要的编辑效果（例如：把背景换成海边日落，保留人物）"></textarea>
+
+      <label class="lab">任务类型 Task Types（可多选 / Multi-select）</label>
+      <div class="checks" id="editTaskTypes"></div>
+
+      <div class="grid2">
+        <div>
+          <label class="lab">steps num_inference_steps（1-50）</label>
+          <input id="editSteps" class="input" type="number" min="1" max="50" value="4" />
+        </div>
+        <div>
+          <label class="lab">guidance_scale（0-10）</label>
+          <input id="editGuidance" class="input" type="number" min="0" max="10" step="0.5" value="1" />
+        </div>
+      </div>
+
+      <label class="chk">
+        <input type="checkbox" id="editOpenUrl" />
+        完成后浏览器打开 file_url / Open in browser after done
+      </label>
+
+      <div class="hint">
+        Notes: Higher steps = slower but more detail; higher guidance = follows prompt more strongly.
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="btnEditRun">执行 / Run</button>
+      </div>
+    </section>
+
+    <section class="card model-panel" id="panelWan">
+      <h2>Wan2.2-I2V-A14B（图生视频 / Image-to-Video）</h2>
+
+      <label class="lab">输入图片 Image</label>
+      <input id="wanImg" class="input" type="file" accept="image/png,image/jpeg,image/webp" />
+
+      <label class="lab">提示词 Prompt</label>
+      <textarea id="wanPrompt" class="textarea" rows="5" placeholder="描述视频风格/动作（例如：镜头缓慢推进，微风吹动头发，电影感）"></textarea>
+
+      <label class="lab">负面提示词 Negative Prompt（可选 / Optional）</label>
+      <textarea id="wanNeg" class="textarea" rows="3" placeholder="例如：lowres, blurry, watermark"></textarea>
+
+      <div class="grid3">
+        <div>
+          <label class="lab">预设 Preset</label>
+          <select id="wanPreset" class="input">
+            <option>标准 / Standard</option>
+            <option>更清晰 / Sharper</option>
+            <option>更动感 / More motion</option>
+            <option>更快 / Faster</option>
+          </select>
+        </div>
+        <div class="row-inline">
+          <button class="btn" id="btnWanApplyPreset">应用预设 / Apply</button>
+        </div>
+      </div>
+
+      <div class="grid3">
+        <div>
+          <label class="lab">分辨率预设 Resolution</label>
+          <select id="wanResPreset" class="input"></select>
+        </div>
+        <div>
+          <label class="lab">width 宽（64-2048）</label>
+          <input id="wanW" class="input" type="number" min="64" max="2048" step="8" value="832" />
+        </div>
+        <div>
+          <label class="lab">height 高（64-2048）</label>
+          <input id="wanH" class="input" type="number" min="64" max="2048" step="8" value="480" />
+        </div>
+      </div>
+
+      <div class="grid3">
+        <div>
+          <label class="lab">num_inference_steps（1-100）</label>
+          <input id="wanSteps" class="input" type="number" min="1" max="100" value="30" />
+        </div>
+        <div>
+          <label class="lab">guidance_scale（0-20）</label>
+          <input id="wanGuidance" class="input" type="number" min="0" max="20" step="0.5" value="5" />
+        </div>
+        <div>
+          <label class="lab">seed（-1=随机 / random）</label>
+          <input id="wanSeed" class="input" type="number" min="-1" max="2147483647" value="-1" />
+        </div>
+      </div>
+
+      <div class="grid3">
+        <label class="chk"><input type="checkbox" id="wanWatermark" /> watermark 水印</label>
+        <label class="chk"><input type="checkbox" id="wanPromptExtend" /> prompt_extend 自动扩写</label>
+        <label class="chk"><input type="checkbox" id="wanOpenUrl" /> 完成后浏览器打开 file_url</label>
+      </div>
+
+      <div class="grid3">
+        <div>
+          <label class="lab">帧率 FPS（1-60）</label>
+          <input id="wanFps" class="input" type="number" min="1" max="60" value="24" />
+        </div>
+        <div>
+          <label class="lab">总时长 Duration 秒（0.5-60）</label>
+          <input id="wanDuration" class="input" type="number" min="0.5" max="60" step="0.5" value="5" />
+        </div>
+        <div>
+          <label class="lab">num_frames（1-300）</label>
+          <input id="wanFrames" class="input" type="number" min="1" max="300" value="30" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label class="chk">
+          <input type="checkbox" id="wanAutoFrames" checked />
+          num_frames 自动 = FPS×5s（推荐 / Auto）
+        </label>
+        <label class="chk">
+          <input type="checkbox" id="wanZipSegments" />
+          生成多段时：一键打包下载（zip）
+        </label>
+      </div>
+
+      <div class="hint">
+        说明：若服务端单次只能生成固定 5 秒，本工具会按你指定的 Duration 分段生成并下载。<br/>
+        注意：浏览器端无法像桌面版那样用 ffmpeg 合并/裁剪成“一个最终 mp4”；因此多段会分别提供可播放与下载（也可勾选 zip 打包下载）。<br/>
+        EN: If backend returns fixed-length clips, we generate segments and provide playable/downloadable mp4s (optionally zip).
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="btnWanRun">执行 / Generate Video</button>
+      </div>
+    </section>
+
+    <section class="card model-panel" id="panelHunyuan">
+      <h2>HunyuanVideo-1.5（文生视频 / Text-to-Video）</h2>
+
+      <label class="lab">提示词 Prompt（中/英均可 / CN&EN OK）</label>
+      <textarea id="hyPrompt" class="textarea" rows="6" placeholder="例如：年轻的中国女性穿着传统红色古装，轻轻撩起头纱，特写镜头，浅景深，暖色调"></textarea>
+
+      <label class="lab">负面提示词 Negative Prompt（可选 / Optional）</label>
+      <textarea id="hyNeg" class="textarea" rows="3" placeholder="例如：lowres, blurry, watermark"></textarea>
+
+      <div class="grid3">
+        <div>
+          <label class="lab">画面比例 Aspect Ratio</label>
+          <select id="hyAspect" class="input">
+            <option value="16:9">16:9</option>
+            <option value="9:16">9:16</option>
+            <option value="1:1">1:1</option>
+          </select>
+        </div>
+        <div>
+          <label class="lab">steps num_inferenece_steps（1-10）</label>
+          <input id="hySteps" class="input" type="number" min="1" max="10" value="10" />
+        </div>
+        <div>
+          <label class="lab">fps（1-24）</label>
+          <input id="hyFps" class="input" type="number" min="1" max="24" value="24" />
+        </div>
+      </div>
+
+      <div class="grid3">
+        <div>
+          <label class="lab">num_frames（81-241）</label>
+          <input id="hyFrames" class="input" type="number" min="81" max="241" value="241" />
+        </div>
+        <div>
+          <label class="lab">seed（正整数 / positive integer）</label>
+          <input id="hySeed" class="input" type="number" min="1" max="2147483647" value="1" />
+        </div>
+        <label class="chk">
+          <input type="checkbox" id="hyOpenUrl" />
+          完成后浏览器打开 file_url / Open in browser after done
+        </label>
+      </div>
+
+      <div class="hint">
+        说明：这是异步任务接口，会先返回 task_id，然后自动轮询状态直至 success/failed。<br/>
+        EN: This is an async endpoint; we create a task, then poll status until success/failed.
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="btnHyRun">执行 / Generate Video</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row row-between">
+        <h2>输出 / Output</h2>
+        <div class="row-inline">
+          <button class="btn" id="btnClearOutput">清空输出</button>
+        </div>
+      </div>
+      <div id="output" class="output"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="mono">Powered by Cloudflare Workers proxy • 请使用者自觉遵守所在国家的法律，切勿触犯法律界限 • Please consciously comply with the laws of your country and do not cross legal boundaries.</div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>

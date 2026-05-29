@@ -25,7 +25,8 @@
     "cfw_theme_v1", "cfw_theme_accent_v1", "cfw_thinking",
     "cfw_prior_summary_v1", "cfw_summary_enabled", "cfw_summary_trigger", "cfw_summary_keep",
     "tavern_active_props_v1", "tavern_active_scene_v1", "tavern_aff_pending_v1",
-    "cfw_prompt_presets_v1", "cfw_cost_log_v1", "tavern_multi_agent_mode_v1",
+    "cfw_prompt_presets_v1", "tavern_multi_agent_mode_v1",
+    // 4.20: cfw_cost_log_v1 移出 main blob → 独立 /sync/cost KV (per-day per-field max merge),跨设备不丢数据
     "cfw_mode", "cfw_model", "cfw_use_builtin", "cfw_history_enabled",
     "cfw_prompt_enabled", "cfw_custom_prompt_v1",
     // 4.17: cfw_chat_session_v1 已移出默认白名单,改由 includeChat() toggle 控制(默认 OFF 避免跨设备覆盖)
@@ -41,6 +42,10 @@
     "cfw_chat_protect_v1",
     SYNC_ENABLED_KEY, LAST_PUSH_KEY, LAST_PULL_KEY,
     INCLUDE_CHAT_KEY, PAUSE_KEY, PUSH_COUNT_KEY, PUSH_COUNT_DAY_KEY, // 4.17 同步控制开关本身不进同步
+    // 4.20: 费用独立同步 - 不进 main blob;monkey-patch setItem 看到这些 key 跳过 main markDirty
+    "cfw_cost_log_v1",
+    "cfw_sync_last_cost_push_v1",
+    "cfw_sync_last_cost_pull_v1",
   ];
   // IndexedDB 数据库名列表
   const IDB_NAMES = ["tavern_chars_v2", "tavern_props_v1"];
@@ -239,6 +244,116 @@
     await doPush();
   }
 
+  // ─── 4.20: 费用独立同步通道 (/sync/cost) ───
+  // 设计:cfw_cost_log_v1 独立于 main blob,任何设备发完一条消息排队 push (10s debounce,比 main 的 30s 短)
+  // 合并策略:per-day per-field max (本地 vs 云端 vs 服务端 prev) - 简单稳定,设备并发也不丢
+  // 服务端 /sync/cost PUT 内部再做一次 max merge,即使两台设备同秒 PUT 也不会覆盖
+  const LAST_COST_PUSH_KEY = "cfw_sync_last_cost_push_v1";
+  const LAST_COST_PULL_KEY = "cfw_sync_last_cost_pull_v1";
+  function getLocalCostLog() {
+    try {
+      const raw = localStorage.getItem("cfw_cost_log_v1");
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      return (obj && typeof obj === "object" && !Array.isArray(obj)) ? obj : {};
+    } catch { return {}; }
+  }
+  function setLocalCostLog(log) {
+    try { localStorage.setItem("cfw_cost_log_v1", JSON.stringify(log)); } catch {}
+  }
+  function mergeCostLogs(a, b) {
+    const out = {};
+    const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+    for (const day of keys) {
+      const ea = (a && a[day]) || {};
+      const eb = (b && b[day]) || {};
+      out[day] = {
+        cost: Math.max(ea.cost || 0, eb.cost || 0),
+        prompt: Math.max(ea.prompt || 0, eb.prompt || 0),
+        completion: Math.max(ea.completion || 0, eb.completion || 0),
+        requests: Math.max(ea.requests || 0, eb.requests || 0),
+      };
+    }
+    return out;
+  }
+  async function pullCostFromKV() {
+    if (!token()) throw new Error("未启用云同步(缺 token)");
+    const r = await fetch("/sync/cost");
+    if (r.status === 401) throw new Error("密码错误");
+    if (!r.ok) throw new Error("拉取费用失败: " + r.status);
+    const text = await r.text();
+    if (!text || text === "null") return null;
+    try { return JSON.parse(text); } catch { return null; }
+  }
+  async function pushCostToKV(log) {
+    if (!token()) throw new Error("未启用云同步(缺 token)");
+    const r = await fetch("/sync/cost", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(log),
+    });
+    if (r.status === 401) throw new Error("密码错误");
+    if (!r.ok) throw new Error("推送费用失败: " + r.status);
+    return r.json();
+  }
+  async function pullCostOnStartup() {
+    if (!syncEnabled() || !token()) return;
+    try {
+      const remote = await pullCostFromKV();
+      if (!remote) return;
+      const local = getLocalCostLog();
+      const merged = mergeCostLogs(local, remote);
+      setLocalCostLog(merged);
+      localStorage.setItem(LAST_COST_PULL_KEY, String(Date.now()));
+      // 通知 cost UI 刷新 (顶栏 + Settings 面板)
+      try {
+        if (window.__cost && window.__cost.refreshTopbar) window.__cost.refreshTopbar();
+        if (window.__cost && window.__cost.refreshSettings) window.__cost.refreshSettings();
+      } catch {}
+      emit("cost-synced", { source: "pull" });
+    } catch (e) {
+      emit("cost-error", e);
+    }
+  }
+  let costPushTimer = null;
+  let costPushing = false;
+  let pendingCostPush = false;
+  async function doCostPush() {
+    if (costPushing) { pendingCostPush = true; return; }
+    costPushing = true;
+    try {
+      const local = getLocalCostLog();
+      const res = await pushCostToKV(local);
+      localStorage.setItem(LAST_COST_PUSH_KEY, String(res.savedAt || Date.now()));
+      // 服务端返回 merged 全量 (含其他设备先 push 过的更高数字),本地再次 merge 落地
+      if (res && res.merged && typeof res.merged === "object") {
+        const merged = mergeCostLogs(local, res.merged);
+        setLocalCostLog(merged);
+        try {
+          if (window.__cost && window.__cost.refreshTopbar) window.__cost.refreshTopbar();
+          if (window.__cost && window.__cost.refreshSettings) window.__cost.refreshSettings();
+        } catch {}
+      }
+      incrPushCount();
+      emit("cost-synced", Object.assign({}, res, { source: "push" }));
+    } catch (e) {
+      emit("cost-error", e);
+    } finally {
+      costPushing = false;
+      if (pendingCostPush) { pendingCostPush = false; setTimeout(doCostPush, 1500); }
+    }
+  }
+  function markCostDirty() {
+    if (!syncEnabled() || !token()) return;
+    if (isPaused()) return;
+    if (costPushTimer) clearTimeout(costPushTimer);
+    costPushTimer = setTimeout(() => { costPushTimer = null; doCostPush(); }, 10000);
+  }
+  async function pushCostNow() {
+    if (costPushTimer) { clearTimeout(costPushTimer); costPushTimer = null; }
+    await doCostPush();
+  }
+
   // ─── 启动时拉取 ───
   async function pullOnStartup() {
     if (!syncEnabled() || !token()) return;
@@ -297,6 +412,8 @@
   // ─── 暴露 ───
   window.__sync = {
     markDirty, pushNow, pullFromKV, pullOnStartup,
+    // 4.20: 费用独立同步通道 (app.js addCostToToday 调 markCostDirty)
+    markCostDirty, pushCostNow, pullCostOnStartup,
     exportJSON, importJSON,
     syncEnabled, setSyncEnabled,
     includeChat, setIncludeChat, // 4.17: 同步聊天历史 toggle
@@ -315,9 +432,10 @@
     }),
   };
 
-  // 启动自动拉
+  // 启动自动拉 (main blob + 4.20 独立 cost log,两个通道并发)
   if (syncEnabled() && token()) {
     pullOnStartup();
+    pullCostOnStartup(); // 4.20: 即使 main blob 没变也单独 merge 云端最高 cost
   }
 
   // 多 tab 互同：另一个 tab 改了 LS 也触发 push

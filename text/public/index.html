@@ -29,6 +29,8 @@
     /* styles.css 里 .hide-msg-actions 旧规则会一并隐 .stats,这里用 !important revert 拆开 */
     html.hide-msg-actions .stats { display: block !important; }
     html.hide-stats .stats { display: none !important; }
+    /* 4.20: 顶栏组件可开关 - 实时资金按钮 #costDisplay 关闭后,topbar-spacer 自动吸收空隙紧凑剩余按钮 */
+    html.hide-topbar-cost #costDisplay { display: none !important; }
   </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
   <!-- 支持 minimal(默认) / glass / lewd-peach / lewd-doll;新增主题只需扩 ALLOWED 集合 -->
@@ -48,6 +50,8 @@
         var ls = localStorage, html = document.documentElement;
         if (ls.getItem('cfw_hide_msg_actions_v1') === '1') html.classList.add('hide-msg-actions');
         if (ls.getItem('cfw_hide_stats_v1') === '1') html.classList.add('hide-stats');
+        // 4.20: 顶栏组件开关 (默认开,只有 LS === '0' 才隐藏)
+        if (ls.getItem('cfw_show_topbar_cost_v1') === '0') html.classList.add('hide-topbar-cost');
         // 4.15 hotfix: 不再给 html 加 data-reply-style="wechat" — wechat 模式仅控拆气泲,不再隐藏小按钮(需隐藏请用上面独立 toggle)
         var fs = parseInt(ls.getItem('cfw_chat_font_size_v1') || '13', 10);
         if (fs >= 12 && fs <= 28) html.style.setProperty('--chat-font-size', fs + 'px');
@@ -240,6 +244,7 @@
               <button class="smallbtn" id="syncExportBtn" data-dev-only>📤 导出备份</button>
               <button class="smallbtn" id="syncImportBtn" data-dev-only>📥 导入备份</button>
               <input type="file" id="syncImportFile" accept=".json" style="display:none">
+              <button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/道具/preset/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。">🗑 清空云端</button>
             </div>
           </div>
           <div id="syncStatus" style="font-size:11px;color:#888;margin-top:8px;"></div>
@@ -264,6 +269,114 @@
                 });
               }
               wireWarn();
+              // 4.21 P2: 清空云端按钮
+              (function(){
+                var wb = document.getElementById('syncWipeBtn');
+                if (!wb) return;
+                wb.addEventListener('click', async function(){
+                  var sync = window.__sync;
+                  if (!sync || typeof sync.wipeCloud !== 'function') { alert('云同步模块未就绪'); return; }
+                  var st = (sync.getStatus && sync.getStatus()) || {};
+                  if (!st.enabled || !st.hasToken) { alert('请先启用云同步(需密码)再清空云端'); return; }
+                  if (!confirm('确定清空云端的全部数据吗?\n\n· 删除:角色卡/道具/preset/亲密度/费用/对话历史的【云端副本】\n· 保留:本设备本地数据全部不动\n· 注意:同步仍开启时,下次本地改动会把本地重新上传。想让云端保持空,请清空后关闭云同步。')) return;
+                  var old = wb.textContent; wb.disabled = true; wb.textContent = '清空中…';
+                  try {
+                    await sync.wipeCloud();
+                    wb.textContent = '✓ 已清空';
+                    var s = document.getElementById('syncStatus');
+                    if (s) s.textContent = '云端已清空 · ' + new Date().toLocaleTimeString();
+                    setTimeout(function(){ wb.textContent = old; wb.disabled = false; }, 2000);
+                  } catch (e) {
+                    wb.textContent = old; wb.disabled = false;
+                    alert('清空云端失败:' + (e && e.message || e));
+                  }
+                });
+              })();
+            })();
+          </script>
+          <details id="cloudExcludeSection" style="margin-top:10px;">
+            <summary style="cursor:pointer;font-size:12px;color:#aaa;">🧹 按角色/会话 只清云端（保留本地）</summary>
+            <div style="font-size:11px;color:#888;margin:6px 0;line-height:1.5;">
+              只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。
+            </div>
+            <div id="cloudExcludeList" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <script>
+(function(){
+  var listEl = document.getElementById('cloudExcludeList');
+  if (!listEl) return;
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function cards(){ try { return (window.__character && window.__character.listAllCards) ? (window.__character.listAllCards()||[]) : []; } catch(e){ return []; } }
+  function slots(){ try { var raw=localStorage.getItem('cfw_chat_session_v1'); if(!raw) return []; var m=JSON.parse(raw); return (m && typeof m==='object' && !Array.isArray(m)) ? Object.keys(m) : []; } catch(e){ return []; } }
+  function excluded(){ try { return (window.__sync && window.__sync.getExcluded) ? window.__sync.getExcluded() : {roles:[],sessions:[]}; } catch(e){ return {roles:[],sessions:[]}; } }
+  function nameOf(id, cs){ if(id==='__none__') return '（未选角色）'; var c=cs.filter(function(x){return x.id===id;})[0]; return c ? ((c.icon?c.icon+' ':'')+c.name) : id; }
+  function rowHtml(kind, id, label, isEx){
+    var btn = isEx ? '<button class="smallbtn" data-act="restore" data-kind="'+kind+'" data-id="'+esc(id)+'">↩ 恢复同步</button>' : '<button class="smallbtn danger" data-act="wipe" data-kind="'+kind+'" data-id="'+esc(id)+'">🗑 仅清云端</button>';
+    var tag = kind==='session' ? '会话' : '角色';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;'+(isEx?'opacity:.65;':'')+'"><span>'+(isEx?'🚫 ':'')+'<b style="color:#999;">['+tag+']</b> '+esc(label)+'</span>'+btn+'</div>';
+  }
+  function render(){
+    var cs=cards(), ex=excluded(), sl=slots(), html='';
+    html += '<div style="font-size:11px;color:#777;margin-top:4px;">角色卡</div>';
+    if(!cs.length) html += '<div style="font-size:11px;color:#666;">（无角色卡）</div>';
+    cs.forEach(function(c){ html += rowHtml('role', c.id, (c.icon?c.icon+' ':'')+c.name, ex.roles.indexOf(c.id)>=0); });
+    ex.roles.forEach(function(id){ if(!cs.filter(function(x){return x.id===id;})[0]) html += rowHtml('role', id, id+'（本地已无）', true); });
+    html += '<div style="font-size:11px;color:#777;margin-top:8px;">对话会话槽</div>';
+    if(!sl.length) html += '<div style="font-size:11px;color:#666;">（无本地会话槽）</div>';
+    sl.forEach(function(k){ html += rowHtml('session', k, nameOf(k, cs), ex.sessions.indexOf(k)>=0); });
+    ex.sessions.forEach(function(k){ if(sl.indexOf(k)<0) html += rowHtml('session', k, nameOf(k, cs)+'（本地已无）', true); });
+    listEl.innerHTML = html;
+  }
+  listEl.addEventListener('click', async function(e){
+    var b = e.target.closest('button[data-act]'); if(!b) return;
+    var sync = window.__sync;
+    if(!sync || !sync.wipeCloudEntity){ alert('云同步模块未就绪'); return; }
+    var st = (sync.getStatus && sync.getStatus()) || {};
+    if(!st.enabled || !st.hasToken){ alert('请先启用云同步(需密码)'); return; }
+    var act=b.getAttribute('data-act'), kind=b.getAttribute('data-kind'), id=b.getAttribute('data-id');
+    var old=b.textContent; b.disabled=true; b.textContent='处理中…';
+    try {
+      if(act==='wipe'){
+        if(!confirm('确定只把这一'+(kind==='session'?'个会话':'个角色')+'从云端清除吗?\n本地保留,且本设备不再上传它。')){ b.disabled=false; b.textContent=old; return; }
+        await sync.wipeCloudEntity(kind, id);
+      } else { await sync.restoreCloudEntity(kind, id); }
+      render();
+    } catch(err){ b.disabled=false; b.textContent=old; alert('操作失败:'+(err && err.message || err)); }
+  });
+  var sb=document.getElementById('settingsBtn'); if(sb) sb.addEventListener('click', function(){ setTimeout(render,50); });
+  var sec=document.getElementById('cloudExcludeSection'); if(sec) sec.addEventListener('toggle', function(){ if(sec.open) render(); });
+})();
+</script>
+          </details>
+        </div>
+
+        <!-- 4.20: 顶栏组件开关 - 用户可关闭可选组件 (目前: 实时资金按钮),其他按钮自动紧凑排列 -->
+        <div class="card">
+          <h4>🧭 顶栏组件(Topbar Components)</h4>
+          <p>
+            控制顶栏可选组件的显示。关闭后剩余按钮(模式切换 / 解限 / 同步 / 设置)自动紧凑排列。<b>仅本设备生效</b>(不进云同步)。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="showTopbarCostToggle">
+              <label for="showTopbarCostToggle">显示实时资金按钮(顶栏 💰 今日 / 总计)</label>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:8px;line-height:1.5;">
+            💡 资金数据始终在下面「费用日志」卡里完整可看;关掉顶栏仅减少视觉占用,不影响计费/同步。
+          </div>
+          <script>
+            (function(){
+              var html = document.documentElement;
+              var t = document.getElementById('showTopbarCostToggle');
+              if (t) {
+                var on = localStorage.getItem('cfw_show_topbar_cost_v1') !== '0';
+                t.checked = on;
+                html.classList.toggle('hide-topbar-cost', !on);
+                t.addEventListener('change', function(){
+                  localStorage.setItem('cfw_show_topbar_cost_v1', t.checked ? '1' : '0');
+                  html.classList.toggle('hide-topbar-cost', !t.checked);
+                });
+              }
             })();
           </script>
         </div>
@@ -508,6 +621,9 @@
             解限提示词 PROMPT_1/2/3 之后追加的语调约束层。启用的预设按顺序以空行拼接注入。
             <b>红线</b>:只追加,不替换解限 base。名为 <b>COT</b> 的预设在快速模式(DeepSeek)下自动禁用,避免与 native thinking 冲突。
           </p>
+          <div class="rowline" style="margin-bottom:8px;">
+            <input type="text" id="presetSearch" placeholder="🔍 搜索预设名称 / 内容…" style="flex:1;padding:7px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;font-size:13px;">
+          </div>
           <div id="presetList" class="preset-list"></div>
           <div class="rowline">
             <div></div>
@@ -517,6 +633,37 @@
               <button class="smallbtn" id="presetExportBtn" title="导出 JSON 到剪贴板">📤 导出</button>
               <button class="smallbtn danger" id="presetResetBtn" title="清空并恢复 5 个内置 starter">重置 starter</button>
             </div>
+          </div>
+        </div>
+
+        <!-- 2026-05-29 微信发图(实验):chat-image.js 配套设置卡 -->
+        <div class="card" id="chatImageCard">
+          <h4>📸 微信发图(Photo · 实验)</h4>
+          <p>
+            开启后,AI 在合适时机会在回复末尾追加发图信号 <code>[[发图:场景]]</code>,文本侧抠出并渲染成图片气泡。
+            出图由图像侧 <code>window.__chatImage</code> 提供;<b>契约未上线时走内置 mock 占位图</b>,整条链路可独立测。<b>仅本设备生效</b>(不进云同步)。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="ciEnableToggle">
+              <label for="ciEnableToggle">启用微信发图(注入发图能力 + 渲染图片气泡)</label>
+            </div>
+            <div class="btns">
+              <button class="smallbtn" id="ciManualBtn" title="手动叫当前角色发一张图(绕过冷却/上限)">📷 让 TA 发张图</button>
+            </div>
+          </div>
+          <div class="rowline" style="margin-top:8px;align-items:center;gap:10px;">
+            <label style="font-size:12px;color:#999;">软冷却(秒)</label>
+            <input type="number" id="ciCooldown" min="0" max="999" value="60" style="width:80px;padding:5px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;">
+            <label style="font-size:12px;color:#999;">每会话上限</label>
+            <input type="number" id="ciCap" min="0" max="99" value="6" style="width:70px;padding:5px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;">
+          </div>
+          <div class="rowline" style="margin-top:8px;align-items:center;gap:10px;">
+            <label class="smallbtn" style="cursor:pointer;">⬆️ 上传当前角色基准图<input type="file" id="ciBaseUpload" accept="image/*" style="display:none;"></label>
+            <span id="ciBaseStatus" style="font-size:11px;color:#888;"></span>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:10px;line-height:1.6;">
+            💡 raw 阶段:出图是 mock 占位图、场景扩写走本地模板;待图像侧契约上线 + gpt-oss 扩写链路对齐后自动切真图(代码已留 window.__chatImage 直连分支)。
           </div>
         </div>
 
@@ -818,6 +965,10 @@
 <script src="/fishbowl-engine.js"></script>
 <script src="/presets-ui.js"></script>
 <script src="/cost-log-ui.js"></script>
+<!-- 2026-05-29 微信发图 文本侧编排(raw):配合图像侧 window.__chatImage 契约,契约未上线走 mock -->
+<!-- 2026-05-29 image side chat-photo contract (raw): provides window.__chatImage; load before chat-image.js -->
+<script src="/image-chat.js"></script>
+<script src="/chat-image.js"></script>
 <script src="/chat-ux.js"></script>
 <!-- 4.7 解限编辑器（Unlimited Editor）：4-tab Modal · LS+IDB 混合存储 -->
 <script src="/unlimited-editor.js"></script>

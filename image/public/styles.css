@@ -1,0 +1,233 @@
+/* styles.css — image-next 改动版
+   主题对齐酒馆主站「极简 Minimal」默认主题(text-next/styles.css)
+   复用同一套设计令牌:深色平面 · 胶囊按钮 · #101010 卡片 · 紫调高亮
+   原版 4 模型布局结构保留,仅重新皮肤化(配色/字体/按钮/卡片/输入框) */
+
+:root{
+  /* —— 与酒馆 minimal 主题对齐的设计令牌 —— */
+  --bg:#0b0b0b;
+  --card:#101010;
+  --card-2:#0f0f0f;
+  --border:#222;
+  --border-soft:#2a2a2a;
+  --line:#1f1f1f;
+  --text:#eaeaea;
+  --muted:#9a9a9a;
+  --muted-2:#7f7f7f;
+  --input-bg:#0f0f0f;
+  --input-border:#2f2f2f;
+  --btn-bg:#141414;
+  --btn-bg-hover:#1b1b1b;
+  /* 酒馆高亮紫(用于 primary / active / 焦点) */
+  --accent:#8c64dc;
+  --accent-soft:rgba(140,100,220,.18);
+  --accent-border:rgba(140,100,220,.55);
+  --danger-bg:#1a0f0f;
+  --danger-border:#3a1f1f;
+  --radius:14px;
+  --radius-sm:10px;
+  --radius-pill:999px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  transition:background-color .3s ease, color .3s ease;
+}
+body.modal-open{overflow:hidden}
+
+/* ===== 顶栏 ===== */
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:1000;
+  display:flex;
+  flex-direction:column;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(to bottom, rgba(11,11,11,.92), rgba(11,11,11,.65));
+  backdrop-filter:blur(8px);
+}
+.topbar-main{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  min-height:64px;
+  padding:12px 18px;
+  max-width:1100px;
+  width:100%;
+  margin:0 auto;
+}
+.topbar-left{display:flex;align-items:center;gap:14px;min-width:0}
+.brand-mark{
+  width:40px;height:40px;
+  border-radius:12px;
+  display:grid;place-items:center;flex:none;
+  font-size:17px;font-weight:800;letter-spacing:.4px;
+  color:#fff;
+  background:linear-gradient(135deg, rgba(140,100,220,.95), rgba(90,80,180,.9));
+  box-shadow:0 8px 20px rgba(140,100,220,.22);
+}
+.h1{font-size:17px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-right{display:flex;align-items:center;gap:10px;flex:none}
+
+.top-icon-btn{
+  height:38px;min-width:38px;padding:0 14px;
+  border-radius:var(--radius-pill);
+  border:1px solid var(--border-soft);
+  background:#101010;
+  color:var(--text);
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  text-decoration:none;cursor:pointer;
+  transition:.15s;
+}
+.top-icon-btn:hover{background:#161616;border-color:#3a3a3a;transform:translateY(-1px)}
+.top-icon-btn svg{width:18px;height:18px;flex:none}
+
+.status .badge{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:7px 12px;border-radius:var(--radius-pill);
+  background:#101010;border:1px solid var(--border-soft);
+  font-size:12px;color:var(--muted);white-space:nowrap;
+}
+.topbar-sub{
+  display:flex;align-items:center;gap:8px;
+  min-height:34px;padding:0 18px 10px;
+  max-width:1100px;width:100%;margin:0 auto;
+  border-top:1px solid rgba(255,255,255,.04);
+  color:var(--muted);font-size:12px;line-height:1.4;overflow:hidden;
+}
+.api-label{flex:none}
+.api-link{font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mono{font-family:var(--mono)}
+
+/* ===== 布局 ===== */
+.container{max-width:1100px;margin:18px auto;padding:0 14px 40px}
+
+.card{
+  background:var(--card);
+  border:1px solid #242424;
+  border-radius:var(--radius);
+  padding:16px;
+  margin:14px 0;
+}
+.card h2{margin:0 0 12px 0;font-size:15px;font-weight:600;color:#c8c8c8;letter-spacing:.3px}
+
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row-between{justify-content:space-between}
+.row-inline{display:flex;gap:10px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+.lab{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+
+/* ===== 表单 ===== */
+.input,.textarea,select{
+  width:100%;
+  padding:10px 12px;
+  border-radius:var(--radius-sm);
+  background:var(--input-bg);
+  border:1px solid var(--input-border);
+  color:var(--text);
+  outline:none;
+  font-family:inherit;
+  font-size:14px;
+  transition:border-color .15s, box-shadow .15s;
+}
+.textarea{resize:vertical;min-height:80px;line-height:1.5}
+.input:focus,.textarea:focus,select:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+select option{background:var(--input-bg);color:var(--text)}
+
+/* ===== 按钮 ===== */
+.btn{
+  padding:10px 14px;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border-soft);
+  background:var(--btn-bg);
+  color:var(--text);
+  cursor:pointer;
+  font-size:13px;
+  font-family:inherit;
+  transition:.15s;
+}
+.btn:hover{background:var(--btn-bg-hover);border-color:#3a3a3a}
+.btn.primary{
+  background:linear-gradient(135deg, rgba(140,100,220,.32), rgba(90,80,180,.28));
+  border-color:var(--accent-border);
+  color:#fff;
+}
+.btn.primary:hover{
+  background:linear-gradient(135deg, rgba(140,100,220,.45), rgba(90,80,180,.4));
+  box-shadow:0 4px 14px rgba(140,100,220,.3);
+}
+.btn.danger{
+  background:var(--danger-bg);
+  border-color:var(--danger-border);
+  color:#ff9a9a;
+}
+.btn.danger:hover{background:#241010}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.chk{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+.chk input{transform:translateY(1px)}
+
+.hint{
+  margin-top:10px;color:var(--muted);font-size:12px;line-height:1.5;
+  border-left:3px solid var(--accent-border);
+  padding-left:10px;
+}
+
+.model-panel{display:none}
+
+/* ===== 输出区 ===== */
+.output{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:12px}
+.item{
+  border:1px solid var(--border-soft);
+  border-radius:12px;
+  padding:12px;
+  background:var(--card-2);
+}
+.item h3{margin:0 0 8px 0;font-size:14px}
+.item .meta{font-size:12px;color:var(--muted);margin:6px 0}
+.item img,.item video{max-width:100%;width:100%;border-radius:10px;border:1px solid var(--border-soft)}
+.item pre{
+  white-space:pre-wrap;word-break:break-word;
+  background:#090909;border:1px solid var(--line);
+  padding:10px;border-radius:10px;color:#cbd5e1;
+  font-size:12px;max-height:260px;overflow:auto;font-family:var(--mono);
+}
+
+/* ===== 页脚 ===== */
+.footer{
+  border-top:1px solid var(--line);
+  padding:16px 18px;color:var(--muted);font-size:12px;
+  background:rgba(11,11,11,.78);backdrop-filter:blur(10px);
+  text-align:center;
+}
+
+/* ===== 滚动条(与酒馆一致) ===== */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:4px}
+
+/* ===== 响应式 ===== */
+@media (max-width: 880px){
+  .grid2,.grid3{grid-template-columns:1fr}
+  .output{grid-template-columns:1fr}
+  .topbar-main{min-height:60px;padding:10px 14px;gap:10px}
+  .brand-mark{width:36px;height:36px;border-radius:11px}
+  .h1{font-size:15px}
+  .topbar-right{gap:8px}
+  .top-icon-btn{width:36px;min-width:36px;height:36px;padding:0;border-radius:var(--radius-pill)}
+  .top-icon-btn span{display:none}
+  .topbar-sub{min-height:30px;padding:0 14px 8px;font-size:11px}
+}

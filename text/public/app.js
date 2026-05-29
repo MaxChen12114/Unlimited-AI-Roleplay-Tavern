@@ -115,6 +115,11 @@
     e.requests = (e.requests || 0) + 1;
     log[day] = e;
     saveCostLog(log);
+    // 4.20: 费用独立同步 —— 任何设备发完一条立即排队 push (sync.js 内 10s debounce, server 端 per-day max merge)
+    // saveCostLog 用 setItem 不会触发 main blob markDirty (cfw_cost_log_v1 已加入 sync.js PROTECTED)
+    if (window.__sync && window.__sync.markCostDirty) {
+      try { window.__sync.markCostDirty(); } catch {}
+    }
   }
   function getCostStats() {
     const log = loadCostLog();
@@ -811,7 +816,7 @@
           sceneOtherNames,
           thresholdEvents,
           priorSummary,
-          extraSystemPrompts: getExtraSystemPrompts(snapshotMode),
+          extraSystemPrompts: getExtraSystemPrompts(snapshotMode) + ((window.__chatImageText && window.__chatImageText.getInjection) ? window.__chatImageText.getInjection() : ""),
           thinking: (snapshotMode === "fast" && thinkingOn) ? "enabled" : "disabled",
           fishbowlMode: opts0.fishbowlMode || null,
           topic: opts0.topic || "",
@@ -950,6 +955,18 @@
       }
     }
 
+    // 2026-05-29 微信发图:抠出 [[发图:场景]] 信号,从正文剥离(触发延后到入 session 后)
+    let _photoSig = null;
+    if (window.__chatImageText && window.__chatImageText.extractSignal) {
+      try {
+        const _r = window.__chatImageText.extractSignal(full);
+        if (_r && _r.scene != null) {
+          _photoSig = _r.scene;
+          if (_r.clean !== full) { full = _r.clean; aiRow.bubble.textContent = full; }
+        }
+      } catch (e) {}
+    }
+
     // 2026-05-29 / 4.18: 微信风格拆气泡
     // session 里还是存完整拼接串(含 ||),避免下轮 turn 模型看不到连发样式上下文
     // 4.18 (v8): 拆条从 setTimeout 改成 await delay——sendOne 等所有 push 完才 resolve
@@ -996,11 +1013,11 @@
               if (isNearBottom()) scrollToBottom();
             }
           };
-          if (_inFishbowl) {
-            _pushTail(); // fire-and-forget: sendOne 不等 tail push 完,让 fishbowl 快速推进到 B
-          } else {
-            await _pushTail();
-          }
+          // 4.20 P0: 回退 fire-and-forget tail —— 用户反馈 AB 拆条交错视觉乱 (2026-05-29 17:03 截图)
+          // 原 4.19 P0.5 (1284 第 4 edit) 让 wechat+fishbowl 时 A 早 yield → B 抢屏 → 完全失去群聊接龙节奏
+          // 现在改回无条件 await:wechat+fishbowl 时也是 A 把所有 || 段说完才 resolve sendOne,fishbowl 再推到 B
+          // _tailGen 模块级 token 保留 (stop/重试/删除/abort 仍需中断 tail,不能用 sendGen 否则下个 sendOne 立刻 ++ 让 tail 一醒就退)
+          await _pushTail();
         } else {
           aiRow.bubble.textContent = full;
         }
@@ -1019,6 +1036,10 @@
     }
     session.push(asMsg);
     persistSessionIfEnabled();
+    // 2026-05-29 微信发图:正文入 session 后触发出图(图片气泡插在本条 AI 之后)
+    if (_photoSig != null && window.__chatImageText && window.__chatImageText.handleSignal) {
+      try { window.__chatImageText.handleSignal({ scene: _photoSig, card: characterCard, afterRow: aiRow.rowEl }); } catch (e) {}
+    }
     // 阶段 4-②：本轮成功发送后清空已注入的一次性阈值事件
     if (thresholdEvents && thresholdEvents.length && ch && ch.clearPendingThresholdEvents) {
       try { ch.clearPendingThresholdEvents(); } catch {}
@@ -1118,8 +1139,13 @@
     restoreSessionIfEnabled();
     renderSummaryChip();
     scrollToBottom();
+    // 4.20 P1: dev mode 下 scrollLeft = scrollWidth 会把 #modeToggle 滚出桌面可视区
+    // root cause: dev-only 按钮 #syncPauseBtn + #devBadgeTopbar 让 topbar-inner 总宽超 topbar-scroll viewport,
+    // 推到最右后最左的 modeToggle (免费/快速切换) 被截。手机端正常因为本来就习惯横滑。
+    // 修法:dev mode 下不推右,保持 modeToggle 在左侧可见;普通模式下继续推让 settingsBtn 入视。
     const tbs = document.getElementById("topbarScroll");
-    if (tbs) tbs.scrollLeft = tbs.scrollWidth;
+    const _devOn = localStorage.getItem("cfw_dev_mode_v1") === "1";
+    if (tbs && !_devOn) tbs.scrollLeft = tbs.scrollWidth;
     // 4.17: 切换角色卡时 swap 聊天槽，避免不同角色对话互相污染
     // 4.18 (v5): 鱼缸 relay/discuss 运行期间不切槽——
     // root cause:接龙每轮调 setActiveId(speaker.id) 会触发 character:changed,
