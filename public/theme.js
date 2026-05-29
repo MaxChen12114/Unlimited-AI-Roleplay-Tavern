@@ -232,6 +232,9 @@ function set(patch) {
     r.checked = (r.value === getStyle());
   });
   Pulse.sync();
+  // 2026-05-29 lewd ↔ nsfwLevel 联动: lewd-* 主题 = NSFW L2 露骨, minimal/glass = L0 关闭
+  // worker.js 接收到 nsfwLevel >= 1 时跳过 META_IDENTITY,改注入 buildNsfwInstruction(L)
+  try { localStorage.setItem("cfw_nsfw_mode_v1", isLewd() ? "2" : "0"); } catch (e) {}
   window.dispatchEvent(new CustomEvent("theme:changed", { detail: getAll() }));
 }
 
@@ -304,6 +307,8 @@ function wireSettings() {
 window.addEventListener("load", () => {
   applyStyle(getStyle());
   wireSettings();
+  // 2026-05-29: 启动时同步一次 lewd ↔ nsfwLevel (避免首次进页不点设置时 LS 状态不同步)
+  try { localStorage.setItem("cfw_nsfw_mode_v1", isLewd() ? "2" : "0"); } catch (e) {}
 
   // 首次任意交互解锁 AudioContext
   const unlockOnce = () => {

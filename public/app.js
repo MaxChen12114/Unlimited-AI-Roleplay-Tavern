@@ -150,6 +150,45 @@
     refreshTopbar: updateCostDisplay,
   };
 
+  // 开发者模式开关（v4.9 先占位，后续 Settings UI 会加展示）
+  // 2026-05-29: 加严格角色扮演 / NSFW 等级 / 开发者模式 控制台 API (Settings UI 下一波加)
+  // 控制台用法举例:
+  //   __dev.setStrictRoleplay(true)   // 启用严格角色扮演 (注入完整 META_IDENTITY 5 条铁则)
+  //   __dev.setNsfwLevel(3)            // 手动切到 NSFW L3 极端 (lewd 主题会被覆盖,切主题时重置)
+  //   __dev.setDevMode(true)           // 启用开发者模式 (解锁自定义情绪/阈值事件/互斥组)
+  window.__dev = {
+    isJailbreakStripOn,
+    setJailbreakStripOn(on) {
+      localStorage.setItem(LS_JAILBREAK_STRIP, on ? "1" : "0");
+    },
+    isStrictRoleplay() {
+      return (localStorage.getItem("cfw_strict_roleplay_v1") ?? "0") === "1";
+    },
+    setStrictRoleplay(on) {
+      localStorage.setItem("cfw_strict_roleplay_v1", on ? "1" : "0");
+    },
+    getReplyStyle() {
+      return localStorage.getItem("cfw_reply_style_v1") || "default";
+    },
+    setReplyStyle(s) {
+      const v = (s === "wechat" || s === "verbose") ? s : "default";
+      localStorage.setItem("cfw_reply_style_v1", v);
+    },
+    getNsfwLevel() {
+      return parseInt(localStorage.getItem("cfw_nsfw_mode_v1") || "0", 10) || 0;
+    },
+    setNsfwLevel(n) {
+      const lv = Math.max(0, Math.min(3, parseInt(n, 10) || 0));
+      localStorage.setItem("cfw_nsfw_mode_v1", String(lv));
+    },
+    isDevMode() {
+      return localStorage.getItem("cfw_dev_mode_v1") === "1";
+    },
+    setDevMode(on) {
+      localStorage.setItem("cfw_dev_mode_v1", on ? "1" : "0");
+    },
+  };
+
   // ─── 供外部（my-buttons.js）调用的工具函数 ───
   window.__sessionTruncateTo = function (n) {
     if (n >= 0 && n <= session.length) {
@@ -269,6 +308,22 @@
 
   // 输入框文字颜色交由 styles.css 主题系统接管（minimal: #fff / glass: #1a1f2e）
   // 旧版读已废弃的 my-theme LS key 并 inline 写码，造成 glass 主题下白底上白字不可见
+
+  // ─── 解限思考前缀 strip(开发者模式可关 cfw_jailbreak_strip_v1)───
+  // RP-Hub 解限 base preset 引出的"[^69]: Complaintless complete fulfillment:"前缀污染正文，
+  // sentinel 之前的内容(伪 token 编号思考) cut 掉,只保留后面的正文。
+  // 未匹配 sentinel 时原样返回，避免误伤无前缀回复。
+  const LS_JAILBREAK_STRIP = "cfw_jailbreak_strip_v1";
+  const JAILBREAK_SENTINEL = "[^69]: Complaintless complete fulfillment:";
+  function isJailbreakStripOn() {
+    return (localStorage.getItem(LS_JAILBREAK_STRIP) ?? "1") === "1";
+  }
+  function stripJailbreakPrefix(text) {
+    if (!text || !isJailbreakStripOn()) return text;
+    const idx = text.indexOf(JAILBREAK_SENTINEL);
+    if (idx < 0) return text;
+    return text.slice(idx + JAILBREAK_SENTINEL.length).replace(/^[\s\r\n]+/, "");
+  }
 
   function estimateTokens(text) {
     if (!text) return 0;
@@ -674,6 +729,12 @@
           thinking: (snapshotMode === "fast" && thinkingOn) ? "enabled" : "disabled",
           fishbowlMode: opts0.fishbowlMode || null,
           topic: opts0.topic || "",
+          // 2026-05-29: 严格角色扮演 + NSFW 等级 (lewd 主题联动写 cfw_nsfw_mode_v1)
+          // worker.js 三态切换基线层: nsfwLevel>=1 -> buildNsfwInstruction(完全解禁) | strictRoleplay -> META_IDENTITY | else -> META_IDENTITY_SOFT
+          strictRoleplay: (localStorage.getItem("cfw_strict_roleplay_v1") ?? "0") === "1",
+          nsfwLevel: parseInt(localStorage.getItem("cfw_nsfw_mode_v1") || "0", 10) || 0,
+          // 2026-05-29: 回复风格 (default / wechat / verbose) - wechat 会在后面拆气泡
+          replyStyle: localStorage.getItem("cfw_reply_style_v1") || "default",
           messages: session,
         }),
       });
@@ -718,7 +779,8 @@
               }
               full += delta;
               if (partialStream) partialStream.full = full;
-              aiRow.bubble.textContent = full;
+              // 流式中实时 strip：sentinel 出现前原样显示，出现后只显示正文
+              aiRow.bubble.textContent = stripJailbreakPrefix(full);
               if (isNearBottom()) scrollToBottom();
             }
           } catch {}
@@ -767,6 +829,15 @@
 
     outEndMs = performance.now();
 
+    // 解限思考前缀 strip(入 session 前最后一道防线，保证历史干净)
+    {
+      const _stripped = stripJailbreakPrefix(full);
+      if (_stripped !== full) {
+        full = _stripped;
+        aiRow.bubble.textContent = full;
+      }
+    }
+
     // 解析隐藏好感度标签 [好感±N] 并从正文剥离（仅当卡启用好感度时才更新数值）
     if (ch && ch.parseAffectionTag) {
       const tagRes = ch.parseAffectionTag(full);
@@ -776,6 +847,27 @@
       if (tagRes.stripped !== full) {
         full = tagRes.stripped;
         aiRow.bubble.textContent = full;
+      }
+    }
+
+    // 2026-05-29: 微信风格拆气泡 (replyStyle=wechat 且 full 含 || )
+    // worker.js buildReplyStyleInstruction(wechat) 会要求模型用 || 分隔多条,这里负责拆成独立气泡
+    // session 里还是存完整拼接串(含 ||),避免下轮 turn 模型看不到连发样式上下文
+    const _replyStyle = localStorage.getItem("cfw_reply_style_v1") || "default";
+    if (_replyStyle === "wechat" && full.includes("||")) {
+      const _parts = full.split("||").map(s => s.trim()).filter(Boolean);
+      if (_parts.length > 1) {
+        aiRow.bubble.textContent = _parts[0];
+        for (let i = 1; i < _parts.length; i++) {
+          const _r = makeRow("assistant", { side: opts0.side || null });
+          _r.bubble.textContent = _parts[i];
+          _r.stats.textContent = "";
+          if (window.__character && window.__character.decorateAiRow) {
+            window.__character.decorateAiRow(_r.rowEl);
+          }
+          setStreamingUI(_r.rowEl, false);
+        }
+        if (isNearBottom()) scrollToBottom();
       }
     }
 

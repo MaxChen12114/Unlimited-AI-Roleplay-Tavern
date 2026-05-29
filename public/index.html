@@ -5,6 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Chat Chat</title>
   <link rel="stylesheet" href="/styles.css" />
+  <!-- 2026-05-29: Settings 移动端字体协调修复 (克制裁减不折腾 styles.css) -->
+  <style>
+    @media (max-width: 640px) {
+      #settings #settingsHeader h3 { font-size: 18px; margin: 0 0 4px; }
+      #settings #settingsHeader .hint { font-size: 12px; line-height: 1.5; }
+      #settings .card h4 { font-size: 15px; line-height: 1.4; font-weight: 600; letter-spacing: 0.01em; margin: 0 0 8px; }
+      #settings .card p { font-size: 13px; line-height: 1.65; }
+      #settings .card label { font-size: 13px; }
+      #settings .card code { font-size: 11.5px; padding: 1px 5px; border-radius: 3px; }
+      #settings .card .toggle label { font-size: 13px; }
+      #settings .card .smallbtn { font-size: 12px; }
+    }
+    /* 互动模式 卡 NSFW 等级单选 */
+    #settings .nsfw-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    #settings .nsfw-option { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--border, #333); border-radius: 6px; cursor: pointer; font-size: 13px; transition: background .15s; }
+    #settings .nsfw-option:hover { background: rgba(127,127,127,0.08); }
+    #settings .nsfw-option input[type="radio"] { margin: 0; }
+    @media (min-width: 641px) {
+      #settings .nsfw-options { grid-template-columns: repeat(4, 1fr); }
+    }
+  </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
   <!-- 支持 minimal(默认) / glass / lewd-peach / lewd-doll;新增主题只需扩 ALLOWED 集合 -->
   <script>
@@ -263,6 +284,77 @@
           <div style="font-size:11px;color:#888;margin-top:8px;line-height:1.5;">
             💡 <b>Shift+Esc</b> 是全局紧急停止快捷键,按下后自动切回极简主题。首次启动需点击页面任意位置一次解锁浏览器音频权限。
           </div>
+        </div>
+
+        <!-- 2026-05-29: 互动模式 卡 (严格角色扮演开关 + NSFW 等级单选) -->
+        <div class="card">
+          <h4>🎭 互动模式(Roleplay Mode)</h4>
+          <p>
+            控制底层 system prompt 注入。默认是<b>软提示</b>——允许角色自然跳出、不拍响词汇黑名单。
+            <b>严格角色扮演</b>开启后注入完整人设铁则。
+            <b>NSFW 等级</b> ≥1 会跳过铁则改为注入开放提示;切到<b>蜜桃/少女</b>主题会自动写 L2。
+          </p>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="strictRoleplayToggle">
+              <label for="strictRoleplayToggle">严格角色扮演(注入完整人设铁则)</label>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <div style="font-size:12px;color:#999;margin-bottom:8px;">NSFW 等级</div>
+            <div class="nsfw-options">
+              <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="0"><span>0 · 关闭</span></label>
+              <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="1"><span>1 · 暗示</span></label>
+              <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="2"><span>2 · 露骨</span></label>
+              <label class="nsfw-option"><input type="radio" name="cfwNsfwLevel" value="3"><span>3 · 完全开放</span></label>
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <div style="font-size:12px;color:#999;margin-bottom:8px;">回复风格</div>
+            <select id="replyStyleSel" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border, #333);background:transparent;color:inherit;font-size:13px;">
+              <option value="default">默认 · 交由角色卡决定</option>
+              <option value="wechat">微信连发 · 1-2 句一条·多气泡连发</option>
+              <option value="verbose">长段叙事 · 小说式丰满段落(写小说)</option>
+            </select>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:10px;line-height:1.6;">
+            💡 单人普通对话<b>没有字数限制</b>,写小说请选 <b>长段叙事</b> 档。字数限制(150-250 字)只存在于鱼缸接龙/讨论模式,保持多人轮转节奏。
+          </div>
+          <script>
+            (function(){
+              var strictEl = document.getElementById('strictRoleplayToggle');
+              var nsfwInputs = document.querySelectorAll('input[name="cfwNsfwLevel"]');
+              if (strictEl) {
+                strictEl.checked = localStorage.getItem('cfw_strict_roleplay_v1') === '1';
+                strictEl.addEventListener('change', function(){
+                  localStorage.setItem('cfw_strict_roleplay_v1', strictEl.checked ? '1' : '0');
+                });
+              }
+              function syncNsfwUI(){
+                var lv = parseInt(localStorage.getItem('cfw_nsfw_mode_v1') || '0', 10) || 0;
+                nsfwInputs.forEach(function(r){ r.checked = (parseInt(r.value, 10) === lv); });
+              }
+              nsfwInputs.forEach(function(r){
+                r.addEventListener('change', function(){
+                  if (r.checked) localStorage.setItem('cfw_nsfw_mode_v1', r.value);
+                });
+              });
+              syncNsfwUI();
+              // 主题切 lewd-* 后 theme.js 会自动写 cfw_nsfw_mode_v1,同步 UI 选中状态
+              window.addEventListener('theme:changed', syncNsfwUI);
+              var sb = document.getElementById('settingsBtn');
+              if (sb) sb.addEventListener('click', syncNsfwUI);
+              // 2026-05-29: 回复风格 select
+              var styleSel = document.getElementById('replyStyleSel');
+              if (styleSel) {
+                var saved = localStorage.getItem('cfw_reply_style_v1') || 'default';
+                styleSel.value = (saved === 'wechat' || saved === 'verbose') ? saved : 'default';
+                styleSel.addEventListener('change', function(){
+                  localStorage.setItem('cfw_reply_style_v1', styleSel.value);
+                });
+              }
+            })();
+          </script>
         </div>
 
         <div class="card">
@@ -575,39 +667,6 @@
 <script src="/chat-ux.js"></script>
 <!-- 4.7 解限编辑器（Unlimited Editor）：4-tab Modal · LS+IDB 混合存储 -->
 <script src="/unlimited-editor.js"></script>
-<!-- 4.6 鱼缸控制台点击 header 折叠 · 手机默认折起避免遮挡消息 -->
-<script>
-(function(){
-  var isMobile = function(){ return window.matchMedia('(max-width: 1023px)').matches; };
-  // 事件委托：鱼缸面板是 multi-agent.js 动态创建的，DOM 随时重建
-  document.addEventListener('click', function(e){
-    var header = e.target.closest && e.target.closest('.fishbowl-side-panel .fb-side-header');
-    if (!header) return;
-    var panel = header.closest('.fishbowl-side-panel');
-    if (!panel) return;
-    panel.classList.toggle('collapsed');
-  });
-  // 鱼缸面板首次出现时，手机默认折起
-  var seen = new WeakSet();
-  var obs = new MutationObserver(function(){
-    var panel = document.querySelector('.fishbowl-side-panel');
-    if (!panel || seen.has(panel)) return;
-    seen.add(panel);
-    if (isMobile()) panel.classList.add('collapsed');
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
-  // 手机↔桌面跳变时 reset 折叠状态（桌面不需要隐默折起）
-  var lastMobile = isMobile();
-  window.addEventListener('resize', function(){
-    var nowMobile = isMobile();
-    if (nowMobile === lastMobile) return;
-    lastMobile = nowMobile;
-    var panel = document.querySelector('.fishbowl-side-panel');
-    if (!panel) return;
-    if (nowMobile) panel.classList.add('collapsed');
-    else panel.classList.remove('collapsed');
-  });
-})();
-</script>
+<!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
 </body>
 </html>

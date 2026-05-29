@@ -18,6 +18,9 @@ const TYPES={
 };
 
 const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// 简化减负 (2026-05-29): 互斥组等高级字段隐藏在开发者模式背后
+// 控制台开启: localStorage.setItem("cfw_dev_mode_v1","1");location.reload()
+const isDev=()=>localStorage.getItem("cfw_dev_mode_v1")==="1";
 
 // IndexedDB
 const db=()=>new Promise((r,j)=>{const q=indexedDB.open(DB,1);q.onupgradeneeded=()=>{const d=q.result;if(!d.objectStoreNames.contains(ST))d.createObjectStore(ST,{keyPath:"id"});};q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error);});
@@ -139,7 +142,7 @@ function editor(b,card){
       <label class="char-label">简述（仅 UI 显示）</label><input class="char-input" data-f="description" value="${esc(c.description||"")}" placeholder="一句话说明这张卡的效果">
       <label class="char-label">注入指令（systemInstruction · 会作为【当前生效的特殊状态】发给 AI）</label>
       <textarea class="char-input" data-f="systemInstruction" rows="3" placeholder="${esc(t.placeholder)}">${esc(c.systemInstruction||"")}</textarea>
-      <label class="char-label">互斥组（可空 · 填了相同标识的卡互斥，激活时自动卸下同组其他卡。用于跨类型互斥，如多张「身份扮演」组）</label><input class="char-input" data-f="exclusiveGroup" value="${esc(c.exclusiveGroup||"")}" placeholder="留空 = 不互斥；填任意名字 = 同名互斥" style="width:280px;">
+      ${isDev()?`<label class="char-label">互斥组（开发者模式 · 可空，同名互斥；激活时卸下同组其他卡）</label><input class="char-input" data-f="exclusiveGroup" value="${esc(c.exclusiveGroup||"")}" placeholder="留空 = 不互斥；填任意名字 = 同名互斥" style="width:280px;">`:""}
       <label class="char-label">持续轮数${t.durMin===-1?"（剧情卡可填 -1 = 永久；或 1 ~ 50）":`（${t.durMin} ~ ${t.durMax}）`}（同类型上限 ${t.maxActive||99} 张，超出自动卸下最老）</label>
       <input class="char-input" data-f="duration" type="number" value="${dur}" min="${t.durMin}" max="${t.durMax}" style="width:120px;">
       ${t.allowDelta?`<label class="char-label">使用时一次性好感增减（${t.deltaMin} ~ ${t.deltaMax}，0 表示不变）</label><input class="char-input" data-f="affectionDelta" type="number" value="${delta}" min="${t.deltaMin}" max="${t.deltaMax}" style="width:120px;">`:""}
@@ -161,7 +164,9 @@ function editor(b,card){
       const dur=parseInt(g("duration"),10);
       const durOk=(curType==="plot"&&dur===-1)||(dur>=t.durMin&&dur<=t.durMax);
       if(!durOk){alert(`持续轮数应在 ${t.durMin} ~ ${t.durMax} 之间${curType==="plot"?"（或 -1 表示永久）":""}`);return;}
-      const eg=g("exclusiveGroup").trim();
+      // dev off 时编辑器无 exclusiveGroup 输入框,保留卡上原值避免清空
+      const egEl=b.querySelector('[data-f="exclusiveGroup"]');
+      const eg=egEl?egEl.value.trim():(c.exclusiveGroup||"");
       const s={id:c.id||("p_"+Date.now().toString(36)),type:curType,name,icon:g("icon").trim()||t.icon,description:g("description").trim(),systemInstruction:si,duration:dur,exclusiveGroup:eg};
       if(t.allowDelta){const v=parseInt(g("affectionDelta"),10);if(!isNaN(v))s.affectionDelta=Math.max(t.deltaMin,Math.min(t.deltaMax,v));}
       if(t.allowReset){const raw=g("affectionReset").trim();if(raw!==""){const v=parseInt(raw,10);if(!isNaN(v))s.affectionReset=Math.max(0,Math.min(100,v));}}
