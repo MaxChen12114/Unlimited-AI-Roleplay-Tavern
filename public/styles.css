@@ -3676,6 +3676,51 @@ html[data-theme="lewd-doll"] .ue-badge {
   .ue-footer-hint { display: none; }
 }
 
+/* ═══════════════════════════════
+   Phase 4 阶段 4.8 · UI 三件套
+   - A: 移动端鱼缸面板默认 hidden,点鱼缸 tab 才 toggle 显示
+   - B: 顶栏 .topbar-spacer-left + 原 spacer 夹住 model pill,桌面居中
+   - C: 移动端 tab 54→46px / composer 瘦身 / 思考按钮缩
+   ═══════════════════════════════ */
+
+/* 4.8-A 移动端鱼缸默认 hidden,toggle on 才显示 */
+@media (max-width: 1023px) {
+  .fishbowl-side-panel { display: none !important; }
+  body.fishbowl-shown .fishbowl-side-panel { display: flex !important; }
+}
+
+/* 4.8-B 顶栏 model 居中：left-spacer（mode后）+ 原 spacer（cost后）夹住 */
+.topbar-spacer-left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@media (max-width: 1023px) {
+  .topbar-spacer-left { display: none; }
+}
+
+/* 4.8-C 移动端瘦身一揽子 */
+@media (max-width: 1023px) {
+  .mobile-bottom-tabs { height: 46px; }
+  .mobile-tab-icon { font-size: 16px; }
+  .mobile-tab-label { font-size: 10px; }
+
+  :root { --composer-gap: 56px; }
+  .fishbowl-side-panel { bottom: calc(46px + var(--composer-gap) + 8px); }
+  .mobile-tab-panel.active { bottom: 46px; }
+
+  .input-inner { padding: 7px 10px; border-radius: 18px; }
+  textarea#msg { padding: 4px 4px 4px 8px; font-size: 15px; }
+  button#sendBtn { width: 34px; height: 34px; flex-basis: 34px; }
+  button#sendBtn svg { width: 16px; height: 16px; }
+
+  .composer-toolbar { margin-bottom: 4px; gap: 6px; }
+  .chip-btn { padding: 4px 9px; font-size: 11px; }
+  #thinkToggle { padding: 3px 8px; }
+
+  #bottom-spacer { height: 100px; }
+}
+
+
 
 
 

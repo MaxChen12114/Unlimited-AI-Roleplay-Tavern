@@ -101,6 +101,9 @@
             <!-- 模式切换:免费(NVIDIA) / 快速(DeepSeek官方) -->
             <button class="iconbtn" id="modeToggle" title="切换免费/快速模式"></button>
 
+            <!-- 4.8 左 spacer 把 model pill 推到中间(桌面生效;移动端 CSS 隐藏) -->
+            <span class="topbar-spacer-left"></span>
+
             <div class="pill model-pill">
               <label for="modelSel" class="model-label">Model</label>
               <select id="modelSel"></select>
@@ -386,7 +389,7 @@
 
 <!-- ══ 4.4 手机底部 4-tab 标签条(仅 <1024px 显示;桌面端 display:none) ══ -->
 <nav class="mobile-bottom-tabs" id="mobileBottomTabs" aria-label="底部面板切换">
-  <button class="mobile-tab-btn active" data-tab="fishbowl" title="多智能体群聊鱼缸">
+  <button class="mobile-tab-btn" data-tab="fishbowl" title="点击显示/隐藏群聊控制台（默认隐藏避免遮挡消息）">
     <span class="mobile-tab-icon">🎣</span>
     <span class="mobile-tab-label">鱼缸</span>
   </button>
@@ -416,13 +419,25 @@
     btn.addEventListener('click', function(){
       if (btn.disabled) return;
       var t = btn.getAttribute('data-tab');
+      // 4.8 鱼缸 tab 是 toggle：点击在 body.fishbowl-shown 上切换(CSS 控制面板 display)
+      // 其他 tab 点击则切换 panel 同时关鱼缸
+      if (t === 'fishbowl') {
+        var on = !btn.classList.contains('active');
+        btn.classList.toggle('active', on);
+        document.body.classList.toggle('fishbowl-shown', on);
+        if (on) {
+          // 鱼缸打开同时关掉其他 tab 面板
+          tabs.forEach(function(b){ if (b !== btn) b.classList.remove('active'); });
+          panels.forEach(function(p){ p.classList.remove('active'); });
+        }
+        return;
+      }
+      // 非鱼缸 tab：常规切换 + 顺手关鱼缸
       tabs.forEach(function(b){ b.classList.toggle('active', b === btn); });
       panels.forEach(function(p){
         p.classList.toggle('active', p.getAttribute('data-tab') === t);
       });
-      // 鱼缸 tab 选中时让鱼缸面板恢复显示(被其他 tab 暂时遮挡过)
-      var fb = document.querySelector('.fishbowl-side-panel');
-      if (fb) fb.style.visibility = (t === 'fishbowl') ? '' : 'hidden';
+      document.body.classList.remove('fishbowl-shown');
     });
   });
 })();
