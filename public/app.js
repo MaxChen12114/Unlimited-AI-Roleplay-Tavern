@@ -1074,8 +1074,19 @@
     const tbs = document.getElementById("topbarScroll");
     if (tbs) tbs.scrollLeft = tbs.scrollWidth;
     // 4.17: 切换角色卡时 swap 聊天槽，避免不同角色对话互相污染
+    // 4.18 (v5): 鱼缸 relay/discuss 运行期间不切槽——
+    // root cause:接龙每轮调 setActiveId(speaker.id) 会触发 character:changed,
+    // 旧 handler 把它当"用户手动切角色"调 clearUIRows 清空 chat
+    // → 用户看到的就是"消息一闪就没"
     let lastSlotKey = currentSlotKey();
     window.addEventListener("character:changed", () => {
+      const _fb = window.__fishbowl;
+      const _fbMode = _fb && _fb.getMode ? _fb.getMode() : "orchestrate";
+      const _fbState = _fb && _fb.getState ? (_fb.getState().state || "idle") : "idle";
+      if ((_fbMode === "relay" || _fbMode === "discuss") && (_fbState === "running" || _fbState === "paused")) {
+        lastSlotKey = currentSlotKey(); // 同步 key,鱼缸结束后不会误触发清空
+        return;
+      }
       const curKey = currentSlotKey();
       if (lastSlotKey === curKey) return;
       if (historyEnabled) {
