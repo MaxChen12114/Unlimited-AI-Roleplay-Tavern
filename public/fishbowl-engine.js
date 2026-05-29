@@ -18,7 +18,7 @@ const LSMAX    = "cfw_fishbowl_max_rounds_v1"; // 默认 8，硬上限 30
 const LSSTRAT  = "cfw_fishbowl_strategy_v1"; // "round-robin" | "ai-pick"
 
 const MAX_PARTICIPANTS = 6;
-const MAX_ROUNDS_HARD  = 30;
+const MAX_ROUNDS_HARD  = 1000;  // v4.9 从 30 提到 1000：实质取消轮数限制，仅防意外离开爆资金
 const DEFAULT_MAX      = 8;
 const TICK_SLEEP_MS    = 800;
 const INSERT_DEBOUNCE  = 200;
