@@ -314,15 +314,22 @@
   // sentinel 之前的内容(伪 token 编号思考) cut 掉,只保留后面的正文。
   // 未匹配 sentinel 时原样返回，避免误伤无前缀回复。
   const LS_JAILBREAK_STRIP = "cfw_jailbreak_strip_v1";
-  const JAILBREAK_SENTINEL = "[^69]: Complaintless complete fulfillment:";
+  // 4.18: 改用正则匹配 [^数字]: ... 前缀行 (覆盖 [^69] / [^420] / 任意编号的 RP-Hub 解限思考前缀)
+  // 原写死 sentinel "[^69]: Complaintless complete fulfillment:" 时模型输出 [^420] 不匹配 → 正文带 "I am not deepseek..." 泄漏
+  const JAILBREAK_PREFIX_RE = /^[\s\r\n]*\[\^\d+\][:：][^\n]*(\n+|$)/;
   function isJailbreakStripOn() {
     return (localStorage.getItem(LS_JAILBREAK_STRIP) ?? "1") === "1";
   }
   function stripJailbreakPrefix(text) {
     if (!text || !isJailbreakStripOn()) return text;
-    const idx = text.indexOf(JAILBREAK_SENTINEL);
-    if (idx < 0) return text;
-    return text.slice(idx + JAILBREAK_SENTINEL.length).replace(/^[\s\r\n]+/, "");
+    let s = text;
+    // 反复 strip 开头的 [^数字]: 前缀行 (可能连续多行)。prev 守卫防无限循环。
+    let prev = null;
+    while (s !== prev && JAILBREAK_PREFIX_RE.test(s)) {
+      prev = s;
+      s = s.replace(JAILBREAK_PREFIX_RE, "");
+    }
+    return s.replace(/^[\s\r\n]+/, "");
   }
 
   function estimateTokens(text) {
@@ -805,8 +812,18 @@
               }
               full += delta;
               if (partialStream) partialStream.full = full;
-              // 流式中实时 strip：sentinel 出现前原样显示，出现后只显示正文
-              aiRow.bubble.textContent = stripJailbreakPrefix(full);
+              // 4.18: 微信模式流式期间不写未处理文本到 bubble (含 [^数字]: 前缀 + || 未拆分)
+              // 只显示「正在输入···」typing 动画，结束后再 strip + 拆条 + 按字数 delay 逐条 push
+              const _rs = localStorage.getItem("cfw_reply_style_v1") || "default";
+              if (_rs === "wechat") {
+                if (!aiRow.bubble.classList.contains("wechat-typing")) {
+                  aiRow.bubble.textContent = "正在输入···";
+                  aiRow.bubble.classList.add("wechat-typing");
+                }
+              } else {
+                // 流式中实时 strip：sentinel 出现前原样显示，出现后只显示正文
+                aiRow.bubble.textContent = stripJailbreakPrefix(full);
+              }
               if (isNearBottom()) scrollToBottom();
             }
           } catch {}
@@ -876,24 +893,41 @@
       }
     }
 
-    // 2026-05-29: 微信风格拆气泡 (replyStyle=wechat 且 full 含 || )
-    // worker.js buildReplyStyleInstruction(wechat) 会要求模型用 || 分隔多条,这里负责拆成独立气泡
+    // 2026-05-29 / 4.18: 微信风格拆气泡
     // session 里还是存完整拼接串(含 ||),避免下轮 turn 模型看不到连发样式上下文
+    // 4.18: 取消 typing 动画 → 按上一条字数 * 60ms/字 逐条 delay push (模拟真实打字节奏)
     const _replyStyle = localStorage.getItem("cfw_reply_style_v1") || "default";
-    if (_replyStyle === "wechat" && full.includes("||")) {
-      const _parts = full.split("||").map(s => s.trim()).filter(Boolean);
-      if (_parts.length > 1) {
-        aiRow.bubble.textContent = _parts[0];
-        for (let i = 1; i < _parts.length; i++) {
-          const _r = makeRow("assistant", { side: opts0.side || null });
-          _r.bubble.textContent = _parts[i];
-          _r.stats.textContent = "";
-          if (window.__character && window.__character.decorateAiRow) {
-            window.__character.decorateAiRow(_r.rowEl);
+    if (_replyStyle === "wechat") {
+      aiRow.bubble.classList.remove("wechat-typing");
+      if (full.includes("||")) {
+        const _parts = full.split("||").map(s => s.trim()).filter(Boolean);
+        if (_parts.length > 1) {
+          // 第一条立刻显示
+          aiRow.bubble.textContent = _parts[0];
+          if (isNearBottom()) scrollToBottom();
+          // 后续条按累计「上一条字数 * 60ms」延迟逐条 push (最少 300ms,避免连发太快不真实)
+          let _acc = 0;
+          for (let i = 1; i < _parts.length; i++) {
+            _acc += Math.max(300, _parts[i - 1].length * 60);
+            const _piece = _parts[i];
+            const _side = opts0.side || null;
+            setTimeout(() => {
+              const _r = makeRow("assistant", { side: _side });
+              _r.bubble.textContent = _piece;
+              _r.stats.textContent = "";
+              if (window.__character && window.__character.decorateAiRow) {
+                window.__character.decorateAiRow(_r.rowEl);
+              }
+              setStreamingUI(_r.rowEl, false);
+              if (isNearBottom()) scrollToBottom();
+            }, _acc);
           }
-          setStreamingUI(_r.rowEl, false);
+        } else {
+          aiRow.bubble.textContent = full;
         }
-        if (isNearBottom()) scrollToBottom();
+      } else {
+        // wechat 模式但模型没输 || → 直接显示 full (避免一直卸在 typing 动画)
+        aiRow.bubble.textContent = full;
       }
     }
 

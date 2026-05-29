@@ -78,15 +78,44 @@
     b.addEventListener("click",(e)=>{if(fired){fired=false;e.preventDefault();e.stopPropagation();return;}openPanel();});
   }
 
-  // === Easter-egg: 长按 GitHub 按钮 2 秒切换 ===
+  // === Easter-egg: 长按 GitHub 按钮 1.2 秒切换 (4.18 加震动+缩放+光晕反馈,原 2s 无反馈太迷糊) ===
   function wireGithubLongPress(){
     const g=document.getElementById("githubBtn");
     if(!g)return;
-    let lpT=null,lpF=false;
-    g.addEventListener("pointerdown",()=>{lpF=false;if(lpT)clearTimeout(lpT);lpT=setTimeout(()=>{lpF=true;toggleDev();},2000);});
-    g.addEventListener("pointerup",()=>{if(lpT){clearTimeout(lpT);lpT=null;}});
-    g.addEventListener("pointerleave",()=>{if(lpT){clearTimeout(lpT);lpT=null;}});
-    g.addEventListener("pointercancel",()=>{if(lpT){clearTimeout(lpT);lpT=null;}});
+    let lpT=null,lpF=false,vibT=null;
+    const HOLD_MS=1200;
+    function start(){
+      lpF=false;
+      if(lpT)clearTimeout(lpT);
+      // 按下瞬间: 缩放反馈 + 启动光晕
+      g.style.transition="transform .15s ease, box-shadow .15s ease";
+      g.style.transform="scale(0.92)";
+      g.style.boxShadow="0 0 0 0 rgba(140,100,220,.6)";
+      // 1.2s 内光晕渐进扩散 (模拟蓄力倒计时)
+      requestAnimationFrame(()=>{
+        g.style.transition="transform .15s ease, box-shadow "+HOLD_MS+"ms ease";
+        g.style.boxShadow="0 0 0 18px rgba(140,100,220,0)";
+      });
+      // 三段震动: 按下 / 中段 / 触发
+      try{navigator.vibrate&&navigator.vibrate(15);}catch{}
+      vibT=setTimeout(()=>{try{navigator.vibrate&&navigator.vibrate(25);}catch{}},600);
+      lpT=setTimeout(()=>{
+        lpF=true;
+        try{navigator.vibrate&&navigator.vibrate([40,30,40,30,80]);}catch{}
+        toggleDev();
+      },HOLD_MS);
+    }
+    function cancel(){
+      if(lpT){clearTimeout(lpT);lpT=null;}
+      if(vibT){clearTimeout(vibT);vibT=null;}
+      g.style.transform="";
+      g.style.boxShadow="";
+      g.style.transition="";
+    }
+    g.addEventListener("pointerdown",start);
+    g.addEventListener("pointerup",cancel);
+    g.addEventListener("pointerleave",cancel);
+    g.addEventListener("pointercancel",cancel);
     g.addEventListener("click",(e)=>{if(lpF){e.preventDefault();e.stopPropagation();lpF=false;}});
     g.addEventListener("contextmenu",(e)=>{if(lpT||lpF)e.preventDefault();});
   }

@@ -553,9 +553,13 @@
             <div></div>
             <div class="btns">
               <button class="smallbtn" id="savePrompt">保存</button>
-              <button class="smallbtn" id="closeSettings">关闭</button>
             </div>
           </div>
+        </div>
+
+        <!-- 4.18: Settings 独立底部 footer,永远可见。原 closeSettings 在 data-dev-only 卡里普通模式会被一起藏导致退不出 settings。 -->
+        <div class="settings-footer">
+          <button class="smallbtn" id="closeSettings">✕ 关闭设置</button>
         </div>
       </div>
     </div>

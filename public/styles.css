@@ -22,7 +22,9 @@ html, body {
   margin: 0;
   background: var(--bg);
   color: #eaeaea;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  /* 4.16: 字体走 --chat-font-family CSS var,全局生效(顶栏 / 侧栏 / Settings / 输入框 / 聊天区 / 角色卡)。
+     切字体不再只改聊天气泡,所有界面文字统一变化。 */
+  font-family: var(--chat-font-family);
 }
 
 body { overflow-x: hidden; }
@@ -3107,17 +3109,21 @@ html[data-theme="lewd-doll"] .right-sidebar {
     justify-content: center;
     gap: 2px;
     padding: 4px 2px;
-    transition: color .15s, background .15s;
+    /* 4.16: 加 pill 圆角 + 上下间距,与顶栏 .pill / .iconbtn 圆角胶囊统一视觉语言 */
+    margin: 4px 3px;
+    border-radius: 12px;
+    transition: color .15s, background .15s, outline-color .15s;
     font-family: inherit;
   }
   .mobile-tab-icon { font-size: 18px; line-height: 1; }
   .mobile-tab-label { font-size: 10.5px; }
   .mobile-tab-btn:hover:not(:disabled) { color: #ccc; }
   .mobile-tab-btn.active {
+    /* 4.16: 改 pill 胶囊高亮(outline 不占布局空间,active/inactive 切换无尺寸跳动) */
     color: #d4b3ff;
-    background: rgba(140,100,220,.14);
-    border-top: 2px solid #8c64dc;
-    margin-top: -2px;
+    background: rgba(140,100,220,.18);
+    outline: 1px solid rgba(140,100,220,.45);
+    outline-offset: -1px;
   }
   .mobile-tab-btn:disabled { color: #555; cursor: not-allowed; opacity: .55; }
 
@@ -3149,8 +3155,8 @@ html[data-theme="glass"] .mobile-bottom-tabs {
 html[data-theme="glass"] .mobile-tab-btn { color: #6a7280; }
 html[data-theme="glass"] .mobile-tab-btn.active {
   color: #4338ca;
-  background: rgba(99,102,241,.14);
-  border-top-color: #6366f1;
+  background: rgba(99,102,241,.16);
+  outline-color: rgba(99,102,241,.45);
 }
 html[data-theme="glass"] .mobile-tab-panel.active {
   background: rgba(255,255,255,.97);
@@ -3166,8 +3172,8 @@ html[data-theme="lewd-peach"] .mobile-bottom-tabs {
 html[data-theme="lewd-peach"] .mobile-tab-btn { color: #b89099; }
 html[data-theme="lewd-peach"] .mobile-tab-btn.active {
   color: #FFE8EF;
-  background: rgba(255,107,157,.22);
-  border-top-color: #FF6B9D;
+  background: rgba(255,107,157,.24);
+  outline-color: rgba(255,107,157,.6);
 }
 html[data-theme="lewd-peach"] .mobile-tab-panel.active {
   background: rgba(26,8,16,.97);
@@ -3183,8 +3189,8 @@ html[data-theme="lewd-doll"] .mobile-bottom-tabs {
 html[data-theme="lewd-doll"] .mobile-tab-btn { color: #8a4554; font-weight: 500; }
 html[data-theme="lewd-doll"] .mobile-tab-btn.active {
   color: #8B0033;
-  background: rgba(224,48,96,.18);
-  border-top-color: #E03060;
+  background: rgba(224,48,96,.20);
+  outline-color: rgba(224,48,96,.6);
   font-weight: 600;
 }
 html[data-theme="lewd-doll"] .mobile-tab-panel.active {
@@ -3691,7 +3697,8 @@ html[data-theme="lewd-doll"] .ue-badge {
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  --chat-font-size: 15px;
+  /* 4.16: 默认字号 15→13 (用户反馈 13 最舒服) */
+  --chat-font-size: 13px;
   --chat-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
 }
 
@@ -3700,9 +3707,9 @@ html[data-theme="lewd-doll"] .ue-badge {
   font-family: var(--chat-font-family);
 }
 
-/* 隐藏消息行操作按钮(用户手动开关 或 wechat 模式自动) */
+/* 隐藏消息行操作按钮 + token 统计数字(一起隐 — 干净聊天场景不需要看 prompt/completion/累计) */
 html.hide-msg-actions .my-action-btns,
-html[data-reply-style="wechat"] .my-action-btns {
+html.hide-msg-actions .stats {
   display: none !important;
 }
 
@@ -3733,6 +3740,55 @@ html[data-theme="lewd-doll"] .msg-action-btn:hover {
   box-shadow: 0 2px 8px rgba(224, 48, 96, .25);
 }
 
+/* ═══════════════════════════════
+   Phase 4 阶段 4.18 · 微信模式 typing 动画 + Settings footer
+   - .wechat-typing: 流式期间「正在输入···」呼吸动画 (4 主题)
+   - .settings-footer: 退出/保存按钮独立 sticky footer 区 (跳出 data-dev-only 卡)
+   ═══════════════════════════════ */
+
+.bubble.wechat-typing {
+  color: #888;
+  font-style: italic;
+  letter-spacing: 1px;
+  animation: wechat-typing-pulse 1.2s ease-in-out infinite;
+}
+@keyframes wechat-typing-pulse {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+html[data-theme="glass"]      .bubble.wechat-typing { color: #6a7280; }
+html[data-theme="lewd-peach"] .bubble.wechat-typing { color: #FFB5C5; }
+html[data-theme="lewd-doll"]  .bubble.wechat-typing { color: #8B0033; }
+
+.settings-footer {
+  position: sticky;
+  bottom: -2px;
+  margin: 10px -4px -2px;
+  padding: 12px 8px 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #1f1f1f;
+  background: linear-gradient(to bottom, rgba(15,15,15,0), #0f0f0f 35%);
+  z-index: 1;
+}
+.settings-footer .smallbtn {
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 500;
+}
+html[data-theme="glass"] .settings-footer {
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,.96) 35%);
+  border-top-color: rgba(15,30,60,.08);
+}
+html[data-theme="lewd-peach"] .settings-footer {
+  background: linear-gradient(to bottom, rgba(26,8,16,0), rgba(26,8,16,.95) 35%);
+  border-top-color: rgba(255,107,157,.22);
+}
+html[data-theme="lewd-doll"] .settings-footer {
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,.96) 35%);
+  border-top-color: rgba(139,0,51,.15);
+}
 
 
 
