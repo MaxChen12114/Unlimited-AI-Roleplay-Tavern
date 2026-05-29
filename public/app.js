@@ -752,12 +752,7 @@
 
     const aiRow = makeRow("assistant", { side: opts0.side || null });
     setStreamingUI(aiRow.rowEl, true);
-    // 让 character.js 接管头像/名字（仅当有当前角色卡时）
-    // 4.19 P1 fix: 显式传 characterCard —— setActiveId 是异步 (await IndexedDB),
-    // 鱼缸下一轮 setActive 后立刻进 sendOne,decorate 读模块级 _card 会拿到上一轮 → label 偏移
-    if (window.__character && window.__character.decorateAiRow) {
-      window.__character.decorateAiRow(aiRow.rowEl, characterCard);
-    }
+    // 4.19 P2 fix: decorate 调用挪到 characterCard 定义之后（修 TDZ ReferenceError —— 1293 漏看变量声明顺序导致 sendOne 一进去就抛错，普通发送/接龙/鱼缸全死）
     let outStartMs = 0;
     let outEndMs = 0;
     let full = "";
@@ -776,6 +771,12 @@
     const characterCard = opts0.asCard
       ? opts0.asCard
       : (ch && ch.getActiveCard ? ch.getActiveCard() : null);
+    // 4.19 P1 fix: 显式传 characterCard —— setActiveId 是异步 (await IndexedDB),
+    // 鱼缸下一轮 setActive 后立刻进 sendOne,decorate 读模块级 _card 会拿到上一轮 → label 偏移
+    // 4.19 P2 fix: 这段必须放在 const characterCard 定义之后,否则 TDZ ReferenceError 整个 sendOne 挂掉
+    if (window.__character && window.__character.decorateAiRow) {
+      window.__character.decorateAiRow(aiRow.rowEl, characterCard);
+    }
     const relation = ch && ch.getActiveRelation ? ch.getActiveRelation() : "default";
     const emotion = ch && ch.getActiveEmotion ? ch.getActiveEmotion() : "neutral";
     const affection = ch && ch.getActiveAffection ? ch.getActiveAffection() : null;
