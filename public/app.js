@@ -350,7 +350,10 @@
     if (!text || !isJailbreakStripOn()) return text;
     // 宽松匹配:[^任意非]字符]: 或 [^]: (raw text,理论是 [^数字],但模型偶尔输出变体)
     // 行终止:\n 或 || (wechat 拆条分隔符,避免与正文 || 抢)
-    const re = /\[\^[^\]]*\][:：][^\n|]*(\n|(?=\|\|))/g;
+    // 4.18 (v6 fix): 网络抖动时模型 sentinel 偏偏缺前导 [,例如 ^420]: 原本应该 [^420]:
+    // chunk 边界裂在 [ 之前 → [ 被吃,strip 正则没命中 → thinking 泄漏。
+    // 令 [ 和 头部 ] 都变可选(\[? 和 \]?),同时加 [^a-zA-Z一-龥] 限定 sentinel 前 1 字符不是字母/中文避免误伤正文
+    const re = /(^|[^a-zA-Z一-龥])\[?\^[^\]\n]*\]?[:：][^\n|]*(\n|(?=\|\|))/g;
     let lastEnd = -1;
     let m;
     while ((m = re.exec(text)) !== null) {
