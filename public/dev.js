@@ -68,7 +68,8 @@
     b.id="dev-badge";
     b.textContent="🛠";
     b.title="开发者模式 ON · 短按打开 Dev Panel · 长按 1.5 秒关闭";
-    b.style.cssText="position:fixed;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:linear-gradient(135deg,#7d4fcc,#cc4f7d);color:#fff;font-size:14px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;";
+    // 4.18 (fix): 原 top:10 right:10 完全重叠顶栏 ⚙️ settingsBtn,指点被 🛠 截获导致 dev mode 看不到 setting 。下移 56px (topbar 下方一点),不再挡顶栏任何按钮
+    b.style.cssText="position:fixed;top:56px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:linear-gradient(135deg,#7d4fcc,#cc4f7d);color:#fff;font-size:14px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;";
     document.body.appendChild(b);
     let t=null,fired=false;
     b.addEventListener("pointerdown",()=>{fired=false;if(t)clearTimeout(t);t=setTimeout(()=>{fired=true;toggleDev();},1500);});

@@ -150,7 +150,7 @@
       bindCopy(copyBtn, ".bubble.ai", aiRow);
 
       // ⇺ 重试（从对应的上一条用户消息重新发送）
-      const retryBtn = makeBtn("⇺ 重试");
+      const retryBtn = makeBtn("↺ 重试");
       retryBtn.addEventListener("click", () => {
         const allRows = Array.from(chat.querySelectorAll(".row"));
         const aiIdx = allRows.indexOf(aiRow);
@@ -186,7 +186,7 @@
       bindCopy(copyBtn, ".bubble.user", userRow);
 
       // ⇺ 重试（从这条用户消息重新发送，其后所有回复 / 后续对话都会被丢弃）
-      const retryBtn = makeBtn("⇺ 重试");
+      const retryBtn = makeBtn("↺ 重试");
       retryBtn.addEventListener("click", () => resendFromUserRow(userRow));
 
       // 删除（本条用户 + 紧随其后的 AI 回复一并删）

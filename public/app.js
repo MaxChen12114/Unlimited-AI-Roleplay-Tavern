@@ -316,7 +316,10 @@
   const LS_JAILBREAK_STRIP = "cfw_jailbreak_strip_v1";
   // 4.18: 改用正则匹配 [^数字]: ... 前缀行 (覆盖 [^69] / [^420] / 任意编号的 RP-Hub 解限思考前缀)
   // 原写死 sentinel "[^69]: Complaintless complete fulfillment:" 时模型输出 [^420] 不匹配 → 正文带 "I am not deepseek..." 泄漏
-  const JAILBREAK_PREFIX_RE = /^[\s\r\n]*\[\^\d+\][:：][^\n]*(\n+|$)/;
+  // 4.18 (fix): 要求 sentinel 行必须以 \n 或 || 终止。原 [^\n]* 在无换行情况下贪婪匹配到字符串结尾,
+  // 整段输出被 strip 光导致 wechat 模式 bubble 空白不出字。
+  // [^\n|]* 排除换行和 | 避免吞掉 wechat 拆条用的 || 分隔符;(?=\|\|) lookahead 保留 || 不被吞
+  const JAILBREAK_PREFIX_RE = /^[\s\r\n]*\[\^\d+\][:：][^\n|]*(\n+|(?=\|\|))/;
   function isJailbreakStripOn() {
     return (localStorage.getItem(LS_JAILBREAK_STRIP) ?? "1") === "1";
   }
@@ -329,7 +332,9 @@
       prev = s;
       s = s.replace(JAILBREAK_PREFIX_RE, "");
     }
-    return s.replace(/^[\s\r\n]+/, "");
+    s = s.replace(/^[\s\r\n]+/, "");
+    // 兜底:strip 后内容为空(模型只发了 sentinel 没正文) → 退回原文,至少有东西显示
+    return s || text;
   }
 
   function estimateTokens(text) {

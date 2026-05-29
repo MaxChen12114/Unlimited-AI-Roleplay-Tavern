@@ -25,6 +25,8 @@
     @media (min-width: 641px) {
       #settings .nsfw-options { grid-template-columns: repeat(4, 1fr); }
     }
+    /* 4.18 (fix): 独立 toggle 隐藏统计小字 (token/速度/累计费用) */
+    html.hide-stats .stats { display: none !important; }
   </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
   <!-- 支持 minimal(默认) / glass / lewd-peach / lewd-doll;新增主题只需扩 ALLOWED 集合 -->
@@ -43,6 +45,7 @@
       try {
         var ls = localStorage, html = document.documentElement;
         if (ls.getItem('cfw_hide_msg_actions_v1') === '1') html.classList.add('hide-msg-actions');
+        if (ls.getItem('cfw_hide_stats_v1') === '1') html.classList.add('hide-stats');
         // 4.15 hotfix: 不再给 html 加 data-reply-style="wechat" — wechat 模式仅控拆气泲,不再隐藏小按钮(需隐藏请用上面独立 toggle)
         var fs = parseInt(ls.getItem('cfw_chat_font_size_v1') || '13', 10);
         if (fs >= 12 && fs <= 28) html.style.setProperty('--chat-font-size', fs + 'px');
@@ -350,6 +353,12 @@
               <label for="hideMsgActionsToggle">隐藏消息行下方的小按钮(重试/删除/复制)</label>
             </div>
           </div>
+          <div class="rowline">
+            <div class="toggle">
+              <input type="checkbox" id="hideStatsToggle">
+              <label for="hideStatsToggle">隐藏统计小字(token / 速度 / 累计费用)</label>
+            </div>
+          </div>
           <div style="margin-top:12px;">
             <div style="font-size:12px;color:#999;margin-bottom:8px;">NSFW 等级</div>
             <div class="nsfw-options">
@@ -443,6 +452,17 @@
                 hideEl.addEventListener('change', function(){
                   localStorage.setItem('cfw_hide_msg_actions_v1', hideEl.checked ? '1' : '0');
                   html.classList.toggle('hide-msg-actions', hideEl.checked);
+                });
+              }
+              // 4.18 (fix): 独立 toggle 隐藏统计小字 (token/速度/累计费用)
+              var hideStatsEl = document.getElementById('hideStatsToggle');
+              if (hideStatsEl) {
+                var _hs = localStorage.getItem('cfw_hide_stats_v1') === '1';
+                hideStatsEl.checked = _hs;
+                html.classList.toggle('hide-stats', _hs);
+                hideStatsEl.addEventListener('change', function(){
+                  localStorage.setItem('cfw_hide_stats_v1', hideStatsEl.checked ? '1' : '0');
+                  html.classList.toggle('hide-stats', hideStatsEl.checked);
                 });
               }
               var sizeEl = document.getElementById('chatFontSizeRange');
@@ -557,9 +577,12 @@
           </div>
         </div>
 
-        <!-- 4.18: Settings 独立底部 footer,永远可见。原 closeSettings 在 data-dev-only 卡里普通模式会被一起藏导致退不出 settings。 -->
-        <div class="settings-footer">
-          <button class="smallbtn" id="closeSettings">✕ 关闭设置</button>
+        <!-- 4.18 (fix): 关闭按钮平铺在 settings 末尾 (文档流末尾,不 sticky 占位)。原 closeSettings 在 data-dev-only 卡内会跟卡一起被普通模式隐藏导致退不出 settings,故拆出独立 rowline 放最后 -->
+        <div class="rowline" style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(127,127,127,.18);justify-content:flex-end;">
+          <div></div>
+          <div class="btns">
+            <button class="smallbtn" id="closeSettings">✕ 关闭设置</button>
+          </div>
         </div>
       </div>
     </div>
