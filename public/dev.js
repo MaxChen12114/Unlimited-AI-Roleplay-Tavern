@@ -60,17 +60,16 @@
   }
 
   // === 🛠 角标 ===
+  // 4.18 (fix v2): 彻底不再 fixed 浮动,改为 wire index.html 顶栏 #devBadgeTopbar 按钮
+  // (该按钮带 data-dev-only,普通模式被 applyVisibility 隐藏,dev mode ON 才出现)
+  // 顺手清理可能残留的旧 fixed badge
   function ensureBadge(){
-    const ex=document.getElementById("dev-badge");
-    if(!isOn()){if(ex)ex.remove();return;}
-    if(ex)return;
-    const b=document.createElement("button");
-    b.id="dev-badge";
-    b.textContent="🛠";
-    b.title="开发者模式 ON · 短按打开 Dev Panel · 长按 1.5 秒关闭";
-    // 4.18 (fix): 原 top:10 right:10 完全重叠顶栏 ⚙️ settingsBtn,指点被 🛠 截获导致 dev mode 看不到 setting 。下移 56px (topbar 下方一点),不再挡顶栏任何按钮
-    b.style.cssText="position:fixed;top:56px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:linear-gradient(135deg,#7d4fcc,#cc4f7d);color:#fff;font-size:14px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;";
-    document.body.appendChild(b);
+    const old=document.getElementById("dev-badge");
+    if(old)old.remove();
+    const b=document.getElementById("devBadgeTopbar");
+    if(!b)return;
+    if(b.dataset.wired==="1")return;
+    b.dataset.wired="1";
     let t=null,fired=false;
     b.addEventListener("pointerdown",()=>{fired=false;if(t)clearTimeout(t);t=setTimeout(()=>{fired=true;toggleDev();},1500);});
     b.addEventListener("pointerup",()=>{if(t){clearTimeout(t);t=null;}});

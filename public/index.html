@@ -26,6 +26,8 @@
       #settings .nsfw-options { grid-template-columns: repeat(4, 1fr); }
     }
     /* 4.18 (fix): 独立 toggle 隐藏统计小字 (token/速度/累计费用) */
+    /* styles.css 里 .hide-msg-actions 旧规则会一并隐 .stats,这里用 !important revert 拆开 */
+    html.hide-msg-actions .stats { display: block !important; }
     html.hide-stats .stats { display: none !important; }
   </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
@@ -163,6 +165,8 @@
             </div>
             <!-- 4.17: 暂停同步按钮(dev 可见),临时切断 markDirty 推送,避免乱聊污染 KV -->
             <button class="iconbtn" id="syncPauseBtn" data-dev-only title="暂停/恢复云同步" aria-label="暂停同步">⏸</button>
+            <!-- 4.18 (fix): dev 角标搬进顶栏,不再 fixed 浮动挡 ⚙️ settingsBtn -->
+            <button class="iconbtn" id="devBadgeTopbar" data-dev-only title="🛠 开发者模式 ON · 短按打开 Dev Panel · 长按 1.5 秒关闭" aria-label="开发者面板" style="background:linear-gradient(135deg,#7d4fcc,#cc4f7d);color:#fff;border-color:rgba(255,255,255,.25);">🛠</button>
 
             <button class="iconbtn" id="settingsBtn" title="Settings · 外观风格 / 本地历史 / 自定义模板">⚙️</button>
           </div>

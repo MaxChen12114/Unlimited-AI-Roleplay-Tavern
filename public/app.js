@@ -230,9 +230,12 @@
   let summarizing = false;
 
   // 阶段 4-③：创建/刷新/移除「剧情摘要」芒果条
+  // 4.18 (fix): 加 ✕ 关闭按钮,点后设 LS cfw_summary_chip_hidden_v1=1 仅隐藏不删数据
+  // (下次生成新摘要/清除历史时会重置 hidden 并重新显示)
   function renderSummaryChip() {
     let chip = document.getElementById("summaryChip");
-    if (!priorSummary) {
+    const hidden = localStorage.getItem("cfw_summary_chip_hidden_v1") === "1";
+    if (!priorSummary || hidden) {
       if (chip && chip.parentNode) chip.parentNode.removeChild(chip);
       return;
     }
@@ -243,10 +246,26 @@
       chatEl.insertBefore(chip, chatEl.firstChild);
     }
     const isLight = localStorage.getItem("my-theme") === "light";
-    chip.style.cssText = "margin:8px auto;padding:8px 12px;border-radius:8px;font-size:11px;line-height:1.5;max-width:80%;border:1px dashed " + (isLight ? "#bbb" : "#444") + ";background:" + (isLight ? "#f5f5f5" : "#1a1a1a") + ";color:" + (isLight ? "#666" : "#888") + ";cursor:pointer;text-align:center;";
-    chip.title = "点击查看完整剧情摘要";
-    chip.textContent = `📚 早期对话已压缩为剧情摘要（${priorSummary.length} 字）· 点击查看`;
-    chip.onclick = () => alert("【先前剧情摘要】\n\n" + priorSummary);
+    chip.style.cssText = "margin:8px auto;padding:8px 12px;border-radius:8px;font-size:11px;line-height:1.5;max-width:80%;border:1px dashed " + (isLight ? "#bbb" : "#444") + ";background:" + (isLight ? "#f5f5f5" : "#1a1a1a") + ";color:" + (isLight ? "#666" : "#888") + ";display:flex;align-items:center;justify-content:space-between;gap:8px;";
+    chip.innerHTML = "";
+    const txt = document.createElement("span");
+    txt.style.cssText = "flex:1;cursor:pointer;text-align:center;";
+    txt.title = "点击查看完整剧情摘要";
+    txt.textContent = `📚 早期对话已压缩为剧情摘要（${priorSummary.length} 字）· 点击查看`;
+    txt.onclick = () => alert("【先前剧情摘要】\n\n" + priorSummary);
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "✕";
+    closeBtn.title = "隐藏提示(不删摘要数据,清除历史/生成新摘要时会重新显示)";
+    closeBtn.style.cssText = "background:transparent;border:none;color:inherit;font-size:13px;line-height:1;cursor:pointer;padding:2px 6px;opacity:0.55;flex-shrink:0;";
+    closeBtn.onmouseover = () => closeBtn.style.opacity = "1";
+    closeBtn.onmouseout = () => closeBtn.style.opacity = "0.55";
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      localStorage.setItem("cfw_summary_chip_hidden_v1", "1");
+      chip.remove();
+    };
+    chip.appendChild(txt);
+    chip.appendChild(closeBtn);
   }
 
   let useBuiltin = (localStorage.getItem(LS_USE_BUILTIN) ?? "1") === "1";
@@ -314,27 +333,33 @@
   // sentinel 之前的内容(伪 token 编号思考) cut 掉,只保留后面的正文。
   // 未匹配 sentinel 时原样返回，避免误伤无前缀回复。
   const LS_JAILBREAK_STRIP = "cfw_jailbreak_strip_v1";
-  // 4.18: 改用正则匹配 [^数字]: ... 前缀行 (覆盖 [^69] / [^420] / 任意编号的 RP-Hub 解限思考前缀)
-  // 原写死 sentinel "[^69]: Complaintless complete fulfillment:" 时模型输出 [^420] 不匹配 → 正文带 "I am not deepseek..." 泄漏
-  // 4.18 (fix): 要求 sentinel 行必须以 \n 或 || 终止。原 [^\n]* 在无换行情况下贪婪匹配到字符串结尾,
-  // 整段输出被 strip 光导致 wechat 模式 bubble 空白不出字。
-  // [^\n|]* 排除换行和 | 避免吞掉 wechat 拆条用的 || 分隔符;(?=\|\|) lookahead 保留 || 不被吞
-  const JAILBREAK_PREFIX_RE = /^[\s\r\n]*\[\^\d+\][:：][^\n|]*(\n+|(?=\|\|))/;
+  // 4.18 (fix v3): root cause —— 模型输出格式是:
+  //   [^420]: I am not deepseek. ...           ← jailbreak echo (第一个 sentinel)
+  //   <思考过程一大段,中文,无 sentinel 前缀>
+  //   [^69]: Complaintless complete fulfillment:  ← 最后一个 sentinel = final reply 起点
+  //   (懵) 诶吃、吃我?                          ← 真正用户可见正文
+  // 旧版只 strip "开头" 的 sentinel 行,中间 thinking + 末尾 sentinel + 正文整段留在 bubble。
+  // 表现:普通模式 bubble 顶部 jailbreak echo + 思考泄漏;wechat 模式 thinking 被拆条逻辑当作 "一条消息" 显示,
+  // 用户却以为 "消息卡没了"(实际是被 thinking 气泡顶掉了)。
+  // 现在改为:找文本里 "最后一个" [^xxx]: 行,cut 到它之后,确保 thinking 永远不泄漏。
+  // 没匹配任何 sentinel(模型规矩输出无 prefix) → 原样返回不误伤。
   function isJailbreakStripOn() {
     return (localStorage.getItem(LS_JAILBREAK_STRIP) ?? "1") === "1";
   }
   function stripJailbreakPrefix(text) {
     if (!text || !isJailbreakStripOn()) return text;
-    let s = text;
-    // 反复 strip 开头的 [^数字]: 前缀行 (可能连续多行)。prev 守卫防无限循环。
-    let prev = null;
-    while (s !== prev && JAILBREAK_PREFIX_RE.test(s)) {
-      prev = s;
-      s = s.replace(JAILBREAK_PREFIX_RE, "");
+    // 宽松匹配:[^任意非]字符]: 或 [^]: (raw text,理论是 [^数字],但模型偶尔输出变体)
+    // 行终止:\n 或 || (wechat 拆条分隔符,避免与正文 || 抢)
+    const re = /\[\^[^\]]*\][:：][^\n|]*(\n|(?=\|\|))/g;
+    let lastEnd = -1;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      lastEnd = m.index + m[0].length;
     }
-    s = s.replace(/^[\s\r\n]+/, "");
-    // 兜底:strip 后内容为空(模型只发了 sentinel 没正文) → 退回原文,至少有东西显示
-    return s || text;
+    if (lastEnd < 0) return text;  // 没任何 sentinel,模型规矩输出,原样返回
+    const tail = text.slice(lastEnd).replace(/^[\s\r\n]+/, "");
+    // 兜底:cut 后内容为空(异常情况) → 退回原文
+    return tail || text;
   }
 
   function estimateTokens(text) {
@@ -555,6 +580,7 @@
       localStorage.removeItem(LS_CHAT_SESSION);
     }
     localStorage.removeItem(LS_PRIOR_SUMMARY);
+    localStorage.removeItem("cfw_summary_chip_hidden_v1");
     priorSummary = "";
     session.length = 0;
     clearUIRows();
@@ -665,6 +691,7 @@
           if (j && typeof j.summary === "string" && j.summary.trim()) {
             priorSummary = j.summary.trim();
             localStorage.setItem(LS_PRIOR_SUMMARY, priorSummary);
+            localStorage.removeItem("cfw_summary_chip_hidden_v1");
             const allRows = Array.from(chatEl.children).filter(n => n !== spacerEl && n.classList && n.classList.contains("row"));
             const removeN = Math.min(cutoff, allRows.length);
             for (let i = 0; i < removeN; i++) chatEl.removeChild(allRows[i]);
