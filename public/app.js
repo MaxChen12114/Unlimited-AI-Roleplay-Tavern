@@ -397,8 +397,17 @@
     return (historyWrap.scrollHeight - historyWrap.scrollTop - historyWrap.clientHeight) < 120;
   }
 
+  // 4.19 P0: 流式期间 scroll 抖动优化 - RAF 节流防止每 delta chunk 触发 reflow
+  // root cause: 每 chunk 触发 isNearBottom() + scrollTo 两次同步布局查询,高频流式下打架主线程
+  // 改 RAF: 每帧最多 1 次滢负载,多次调用合并到下一帧
+  let _scrollRafPending = false;
   function scrollToBottom() {
-    historyWrap.scrollTo({ top: historyWrap.scrollHeight, behavior: "auto" });
+    if (_scrollRafPending) return;
+    _scrollRafPending = true;
+    requestAnimationFrame(() => {
+      _scrollRafPending = false;
+      historyWrap.scrollTo({ top: historyWrap.scrollHeight, behavior: "auto" });
+    });
   }
 
   // 鱼缸 V3:opts.side === "right" 时给 AI row 加 .side-right,吐槽姬模式下气泡贴右(头像/气泡用 flex-direction:row-reverse 翻转)
@@ -840,11 +849,7 @@
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               if (!outStartMs) outStartMs = performance.now();
-              // 思考结束、正文开始时，自动折叠思考块
-              if (!reasoningCollapsed && fullReasoning && aiRow.reasoning) {
-                aiRow.reasoning.open = false;
-                reasoningCollapsed = true;
-              }
+              // 4.19 P0: 流式期间不折叠思考块(避免高度突降抖动);改在 stream 结束后统一折叠
               full += delta;
               if (partialStream) partialStream.full = full;
               // 4.18: 微信模式流式期间不写未处理文本到 bubble (含 [^数字]: 前缀 + || 未拆分)
@@ -910,6 +915,11 @@
 
     outEndMs = performance.now();
 
+    // 4.19 P0: stream 结束后统一折叠思考块(流式期间保持 open 避免中途折叠造成高度突降)
+    if (fullReasoning && aiRow.reasoning && aiRow.reasoning.open) {
+      aiRow.reasoning.open = false;
+    }
+
     // 解限思考前缀 strip(入 session 前最后一道防线，保证历史干净)
     {
       const _stripped = stripJailbreakPrefix(full);
@@ -934,34 +944,49 @@
     // 2026-05-29 / 4.18: 微信风格拆气泡
     // session 里还是存完整拼接串(含 ||),避免下轮 turn 模型看不到连发样式上下文
     // 4.18 (v8): 拆条从 setTimeout 改成 await delay——sendOne 等所有 push 完才 resolve
-    // 初衷: fishbowl 接龙 await sendOne 等齐,wechat + 接龙共存不再错位
-    // 负作用: 单 agent 模式下用户要等所有 delay 才能发下一条(原本就是这个体验,wechat 本意)
+    // 4.18 (v9): wechat + fishbowl 共存时拆条上限改 2 条 + 延迟拉到 800-1500ms
+    // root cause: 每 agent 一回合拆 5-6 条 → 单边霸屏,完全失去群聊接龙节奏
+    // 折中: 视觉显示前 2 条(够 wechat 拆条感),剩余在 session 里给下轮模型看上下文用
+    // 真插话(AB 气泡交错)需要 sendOne 重构 + concurrent,排进下回合 backlog
     const _replyStyle = localStorage.getItem("cfw_reply_style_v1") || "default";
     if (_replyStyle === "wechat") {
       aiRow.bubble.classList.remove("wechat-typing");
       if (full.includes("||")) {
         const _parts = full.split("||").map(s => s.trim()).filter(Boolean);
         if (_parts.length > 1) {
+          // 4.18 v9: fishbowl 模式下截断到前 2 条,避免单边霸屏
+          const _inFishbowl = !!opts0.fishbowlMode && opts0.fishbowlMode !== "orchestrate";
+          const _visibleParts = _inFishbowl ? _parts.slice(0, 2) : _parts;
           // 第一条立刻显示
-          aiRow.bubble.textContent = _parts[0];
+          aiRow.bubble.textContent = _visibleParts[0];
           if (isNearBottom()) scrollToBottom();
-          // 后续条按「上一条字数 * 60ms」延迟逐条 push (最少 300ms,避免连发太快不真实)
-          // 改 await——sendOne 等所有 push 完才 return,fishbowl 接龙不再错位
-          for (let i = 1; i < _parts.length; i++) {
-            const _delay = Math.max(300, _parts[i - 1].length * 60);
-            await new Promise(r => setTimeout(r, _delay));
-            // 中途被中断(myGen 变了 / 鱼缸 stop)则后续不 push,避免鬼 row
-            if (myGen !== sendGen) break;
-            const _piece = _parts[i];
-            const _side = opts0.side || null;
-            const _r = makeRow("assistant", { side: _side });
-            _r.bubble.textContent = _piece;
-            _r.stats.textContent = "";
-            if (window.__character && window.__character.decorateAiRow) {
-              window.__character.decorateAiRow(_r.rowEl);
+          // 后续条按「上一条字数 * 80ms」延迟逐条 push,fishbowl 模式最少 800ms 给对面 AI 喘息空间
+          // 4.19 P0.5: fishbowl + wechat 共存时 tail 改 fire-and-forget
+          // → sendOne 早 yield → fishbowl runLoop 立刻推进到 B → AB 气泡真交错插话
+          // 单 agent wechat (fishbowl=false) 仍然 await,保持原 UX
+          const _pushTail = async () => {
+            for (let i = 1; i < _visibleParts.length; i++) {
+              const _minDelay = _inFishbowl ? 800 : 300;
+              const _delay = Math.max(_minDelay, _visibleParts[i - 1].length * (_inFishbowl ? 80 : 60));
+              await new Promise(r => setTimeout(r, _delay));
+              // 中途被中断(myGen 变了 / 鱼缸 stop)则后续不 push,避免鬼 row
+              if (myGen !== sendGen) return;
+              const _piece = _visibleParts[i];
+              const _side = opts0.side || null;
+              const _r = makeRow("assistant", { side: _side });
+              _r.bubble.textContent = _piece;
+              _r.stats.textContent = "";
+              if (window.__character && window.__character.decorateAiRow) {
+                window.__character.decorateAiRow(_r.rowEl);
+              }
+              setStreamingUI(_r.rowEl, false);
+              if (isNearBottom()) scrollToBottom();
             }
-            setStreamingUI(_r.rowEl, false);
-            if (isNearBottom()) scrollToBottom();
+          };
+          if (_inFishbowl) {
+            _pushTail(); // fire-and-forget: sendOne 不等 tail push 完,让 fishbowl 快速推进到 B
+          } else {
+            await _pushTail();
           }
         } else {
           aiRow.bubble.textContent = full;

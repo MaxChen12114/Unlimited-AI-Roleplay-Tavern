@@ -177,8 +177,13 @@ async function runLoop() {
       currentRound++;
       emit();
       // 6. 节流（给用户喘息 + 看清当前发言）
+      // 4.19 P0.5: wechat 风格下 tick 缩到 200ms,配合 sendOne 早 yield 实现 AB 气泡交错
+      // 原理:wechat+fishbowl A 返回后 A 的 tail piece 2 仍在 800ms 后台推,
+      // tick 调小 → B 立刻开始 streaming → B 的 typing/首条与 A 的 tail piece 重叠出现 → 插话感
+      const _isWechat = (localStorage.getItem("cfw_reply_style_v1") || "default") === "wechat";
+      const _tickMs = _isWechat ? 200 : TICK_SLEEP_MS;
       if (state === "running" && currentRound < getMaxRounds()) {
-        await sleep(TICK_SLEEP_MS);
+        await sleep(_tickMs);
       }
     }
   } finally {
