@@ -109,7 +109,10 @@ const getEmo=()=>localStorage.getItem(LSE)||"neutral";
 const setEmo=(e)=>{const v=(e==null?"neutral":String(e)).trim()||"neutral";localStorage.setItem(LSE,v);notif();};
 
 // Avatar decoration (app.js 传 .row.ai DOM)
-function decorate(row){if(!_card||!row||!row.querySelector)return;const a=row.querySelector(".avatar.bot");if(a){a.textContent=_card.icon||"\u{1F642}";a.title=_card.name||"";}const m=row.querySelector(".meta");if(m&&_card.name)m.textContent=_card.name;}
+// 4.19 P1 fix: 加 card 参数。鱼缸场景 setActive 是 async (await IndexedDB),fishbowl-engine setActiveId 后立刻 sendOne,
+// decorate 读模块级 _card 会拿到上一轮的 card → UI label 偏移一个角色(body speakerName=test1 但气泡 label 显示 test2)。
+// sendOne 现在显式传 characterCard (= asCard || getActiveCard()),不再依赖 _card race。
+function decorate(row,card){const c=card||_card;if(!c||!row||!row.querySelector)return;const a=row.querySelector(".avatar.bot");if(a){a.textContent=c.icon||"\u{1F642}";a.title=c.name||"";}const m=row.querySelector(".meta");if(m&&c.name)m.textContent=c.name;}
 
 // UI
 let mask=null,P=null,tab="mine";

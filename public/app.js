@@ -39,11 +39,17 @@
   // partialStream：记录正在流式过程中已收到的 content/reasoning_content，供 beforeunload 兑现
   let currentController = null;
   let sendGen = 0;
+  // 4.19 P1 fix: tail 自己的 generation token,只在 abortCurrent 时 ++
+  // root cause: P0.5 fire-and-forget tail 不能用 sendGen 判断中断 ——
+  // fishbowl 调下个 sendOne 时 sendGen 已 ++,旧 tail 醒来发现 myGen !== sendGen 立刻退出,
+  // 导致 wechat ||拆条只显示第 1 段,后续段全消失。新 _tailGen 不受新 sendOne 影响,只跟 abort 联动。
+  let _tailGen = 0;
   let partialStream = null;
 
   // discardPartial=true: 同时清空 partialStream（重试/删除 使用，明确丢弃已收到的部分）
   // discardPartial=false（默认）: 保留 partialStream，AbortError 处理时会把已收到部分作为完整 AI 回复入 session（停止按钮 使用）
   function abortCurrent(discardPartial) {
+    _tailGen++; // 4.19 P1: 取消所有 fire-and-forget tail (停止/重试/删除/鱼缸 stop 共用)
     if (discardPartial) partialStream = null;
     if (currentController) {
       try { currentController.abort(); } catch {}
@@ -747,8 +753,10 @@
     const aiRow = makeRow("assistant", { side: opts0.side || null });
     setStreamingUI(aiRow.rowEl, true);
     // 让 character.js 接管头像/名字（仅当有当前角色卡时）
+    // 4.19 P1 fix: 显式传 characterCard —— setActiveId 是异步 (await IndexedDB),
+    // 鱼缸下一轮 setActive 后立刻进 sendOne,decorate 读模块级 _card 会拿到上一轮 → label 偏移
     if (window.__character && window.__character.decorateAiRow) {
-      window.__character.decorateAiRow(aiRow.rowEl);
+      window.__character.decorateAiRow(aiRow.rowEl, characterCard);
     }
     let outStartMs = 0;
     let outEndMs = 0;
@@ -964,20 +972,24 @@
           // 4.19 P0.5: fishbowl + wechat 共存时 tail 改 fire-and-forget
           // → sendOne 早 yield → fishbowl runLoop 立刻推进到 B → AB 气泡真交错插话
           // 单 agent wechat (fishbowl=false) 仍然 await,保持原 UX
+          // 4.19 P1 fix: tail 用 _tailGen 判断中断,不用 myGen ——
+          // fire-and-forget 后下个 sendOne 立刻把 sendGen ++,用 myGen 会让 tail 一醒就退,2/3 段永不显示
+          const _myTailGen = _tailGen;
           const _pushTail = async () => {
             for (let i = 1; i < _visibleParts.length; i++) {
               const _minDelay = _inFishbowl ? 800 : 300;
               const _delay = Math.max(_minDelay, _visibleParts[i - 1].length * (_inFishbowl ? 80 : 60));
               await new Promise(r => setTimeout(r, _delay));
-              // 中途被中断(myGen 变了 / 鱼缸 stop)则后续不 push,避免鬼 row
-              if (myGen !== sendGen) return;
+              // 中途被中断(abortCurrent / 鱼缸 stop / 重试 / 删除) → tail 退出
+              if (_myTailGen !== _tailGen) return;
               const _piece = _visibleParts[i];
               const _side = opts0.side || null;
               const _r = makeRow("assistant", { side: _side });
               _r.bubble.textContent = _piece;
               _r.stats.textContent = "";
               if (window.__character && window.__character.decorateAiRow) {
-                window.__character.decorateAiRow(_r.rowEl);
+                // 4.19 P1 fix: tail piece 复用主 row 的 characterCard,保持所有拆条都是同一个角色
+                window.__character.decorateAiRow(_r.rowEl, characterCard);
               }
               setStreamingUI(_r.rowEl, false);
               if (isNearBottom()) scrollToBottom();
