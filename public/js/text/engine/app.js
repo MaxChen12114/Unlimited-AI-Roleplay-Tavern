@@ -376,6 +376,65 @@
     return tail || text;
   }
 
+  // 2026-05-30 / 4.25: 鱼缸模式剥离 AI 误带的发言人名签(【高冷(女)】/ 冷(女)】 串进气泡)
+  // 仅剥开头,且要求名签含性别标记(女/男)或与场景成员名相符,避免误伤正文 【动作】 描写。
+  function stripSceneSpeakerLabel(text) {
+    if (!text) return text;
+    let sceneNames = [];
+    try {
+      if (window.__multi && window.__multi.getSceneCards) {
+        sceneNames = window.__multi.getSceneCards().map(c => (c && c.name) || "").filter(Boolean);
+      }
+    } catch (e) {}
+    let s = text.replace(/^[\s\r\n]+/, "");
+    for (let i = 0; i < 2; i++) {
+      const m = s.match(/^[^\n]{0,16}?[】\]]\s*[:：]?\s*/);
+      if (!m) break;
+      const head = m[0];
+      const hasGender = /[（(][男女][)）]/.test(head);
+      const matchesName = sceneNames.some(n => head.includes(n));
+      if (!hasGender && !matchesName) break;
+      s = s.slice(head.length);
+    }
+    return s.trim() || text;
+  }
+
+  // 2026-05-30 / 4.25 (⑤): 兜底剥离 <think>...</think> 思考块。
+  // 部分模型(尤其 free/NVIDIA 路径)把推理塞进正文且无 [^sentinel] 前缀,stripJailbreakPrefix 漏过 → "爆思考"。
+  function stripThinkBlocks(text) {
+    if (!text) return text;
+    let s = text;
+    // 成对闭合的思考块(可跨行)整段删除
+    s = s.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "");
+    // 开头处未闭合的 <think>(思考尚未输出 </think> 或被截断):砍到结尾
+    s = s.replace(/^\s*<think(?:ing)?>[\s\S]*$/i, "");
+    // 清理残留的孤立标签
+    s = s.replace(/<\/?think(?:ing)?>/gi, "");
+    return s.trim() || text;
+  }
+
+  // 2026-05-30 / 4.25 (⑨): 微信模式兜底拆句——模型没用 || 却吐了长段时,按中文句末标点切成多条短气泡,防"突然跳长篇"。
+  // 仅在文本明显偏长(>40 字且能切出 ≥2 条)时才拆;短回复返回空串表示"无需拆"。
+  function autoSplitWechat(text) {
+    if (!text) return "";
+    const t = text.trim();
+    if (t.length <= 40) return "";
+    const segs = t.match(/[^。！？!?…\n]+[。！？!?…]*[”"』」]?|\n+/g);
+    if (!segs) return "";
+    const pieces = segs.map(s => s.trim()).filter(s => s && !/^\n+$/.test(s));
+    if (pieces.length < 2) return "";
+    const merged = [];
+    for (const p of pieces) {
+      if (merged.length && (merged[merged.length - 1].length + p.length) <= 30) {
+        merged[merged.length - 1] += p;
+      } else {
+        merged.push(p);
+      }
+    }
+    if (merged.length < 2) return "";
+    return merged.join("||");
+  }
+
   function estimateTokens(text) {
     if (!text) return 0;
     let cjk = 0, ascii = 0;
@@ -878,8 +937,8 @@
                   aiRow.bubble.classList.add("wechat-typing");
                 }
               } else {
-                // 流式中实时 strip：sentinel 出现前原样显示，出现后只显示正文
-                aiRow.bubble.textContent = stripJailbreakPrefix(full);
+                // 流式中实时 strip：先剥 <think> 思考块,再 strip sentinel 前缀,出现前原样显示
+                aiRow.bubble.textContent = stripJailbreakPrefix(stripThinkBlocks(full));
               }
               if (isNearBottom()) scrollToBottom();
             }
@@ -935,8 +994,9 @@
     }
 
     // 解限思考前缀 strip(入 session 前最后一道防线，保证历史干净)
+    // 4.25 (⑤): 先剥 <think>...</think> 思考块,再 strip [^sentinel] 前缀,双保险防爆思考
     {
-      const _stripped = stripJailbreakPrefix(full);
+      const _stripped = stripJailbreakPrefix(stripThinkBlocks(full));
       if (_stripped !== full) {
         full = _stripped;
         aiRow.bubble.textContent = full;
@@ -967,6 +1027,18 @@
       } catch (e) {}
     }
 
+    // 2026-05-30 / 4.25: 鱼缸接龙/讨论 —— 剥离 AI 误带的发言人名签 + [next:X]/[end] 标签
+    // 名签泄漏会让「冷(女)】」串进气泡;标签泄漏会让 [next:高冷] 显示出来。
+    // 保留含标签的原文 _replyForEngine 返回给 fishbowl-engine 解析接力/结束。
+    let _replyForEngine = full;
+    if (opts0.fishbowlMode && opts0.fishbowlMode !== "orchestrate") {
+      const _lbl = stripSceneSpeakerLabel(full);
+      if (_lbl !== full) full = _lbl;
+      const _noTags = full.replace(/\[next[:：][^\]\n]*\]/gi, "").replace(/\[end\]/gi, "").trim();
+      if (_noTags !== full) full = _noTags;
+      if (full !== _replyForEngine) aiRow.bubble.textContent = full;
+    }
+
     // 2026-05-29 / 4.18: 微信风格拆气泡
     // session 里还是存完整拼接串(含 ||),避免下轮 turn 模型看不到连发样式上下文
     // 4.18 (v8): 拆条从 setTimeout 改成 await delay——sendOne 等所有 push 完才 resolve
@@ -977,8 +1049,14 @@
     const _replyStyle = localStorage.getItem("cfw_reply_style_v1") || "default";
     if (_replyStyle === "wechat") {
       aiRow.bubble.classList.remove("wechat-typing");
-      if (full.includes("||")) {
-        const _parts = full.split("||").map(s => s.trim()).filter(Boolean);
+      // 4.25 (⑨): 模型没拆 || 却吐了长段 → 客户端兜底按句切分,保证不"跳长篇"(session 仍存原文 full)
+      let _wechatText = full;
+      if (!_wechatText.includes("||")) {
+        const _auto = autoSplitWechat(_wechatText);
+        if (_auto) _wechatText = _auto;
+      }
+      if (_wechatText.includes("||")) {
+        const _parts = _wechatText.split("||").map(s => s.trim()).filter(Boolean);
         if (_parts.length > 1) {
           // 4.18 v9: fishbowl 模式下截断到前 2 条,避免单边霸屏
           const _inFishbowl = !!opts0.fishbowlMode && opts0.fishbowlMode !== "orchestrate";
@@ -1088,7 +1166,8 @@
     if (window.__props && window.__props.tickAfterTurn) {
       try { window.__props.tickAfterTurn(); } catch {}
     }
-    return full;
+    // 4.25: 返回含 [next:X]/[end] 的原文给鱼缸引擎解析(气泡/session 已是剥离版)
+    return _replyForEngine;
   }
 
   // send():从输入框取消息的入口(绑定 Send 按钮 / Enter 键)

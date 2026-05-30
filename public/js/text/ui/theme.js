@@ -42,11 +42,39 @@ const LS_ACCENT    = "cfw_theme_accent_v1";
 const LS_AUDIO_ON  = "cfw_audio_enabled_v1";
 const LS_AUDIO_VOL = "cfw_audio_volume_v1";
 
+// 4.22: 背景音「可选音源」—— 复用现有 Pulse 音频系统,但音源可被 UI 配置覆盖。
+// 优先级: UI 配置 URL > 本机上传(base64) > 默认 lewd 氛围音。
+// 注意: 仍受 Pulse 约束(仅 lewd 主题 + 音频开启时播放);外链需 CORS,否则 Web Audio 分析管线会静音。
+function audioSrc() {
+  try {
+    const o = JSON.parse(localStorage.getItem("cfw_ui_overrides_v1") || "{}");
+    const a = o && o.audio;
+    if (a && a.src) {
+      if (a.src === "__local__") {
+        const as = JSON.parse(localStorage.getItem("cfw_ui_assets_v1") || "{}");
+        if (as && as.audioData) return as.audioData;
+      } else {
+        return a.src;
+      }
+    }
+  } catch (e) {}
+  return AUDIO_URL;
+}
+
 const getStyle  = () => {
   const v = localStorage.getItem(LS_STYLE);
   return STYLES.includes(v) ? v : "minimal";
 };
-const getScheme = () => localStorage.getItem(LS_SCHEME) === "light" ? "light" : "dark";
+// 各主题的「原生」明暗:未显式选择 scheme 时跟随各自气质
+const NATIVE_SCHEME = { "minimal": "light", "glass": "light", "lewd-peach": "dark", "lewd-doll": "light" };
+// v1 已接入明暗双态的主题(逐步扩展;UI 仅对这些主题显示日/夜切换)
+const SCHEME_READY = new Set(["minimal"]);
+const getStoredScheme = () => {
+  const v = localStorage.getItem(LS_SCHEME);
+  return v === "light" || v === "dark" ? v : null;
+};
+// 有效 scheme = 显式选择 > 当前主题原生
+const getScheme = () => getStoredScheme() || NATIVE_SCHEME[getStyle()] || "dark";
 const getAccent = () => localStorage.getItem(LS_ACCENT) || "default";
 const getAll    = () => ({ style: getStyle(), scheme: getScheme(), accent: getAccent() });
 
@@ -66,7 +94,13 @@ function applyStyle(s) {
   } else {
     document.documentElement.setAttribute("data-theme", s);
   }
+  applyScheme();
   if (document.body) document.body.dataset.audioDisabled = String(!getAudioEnabled());
+}
+
+// 明暗维度:作为 data-scheme 覆盖在 data-theme(主题气质)之上;v1 极简已支持双态
+function applyScheme() {
+  document.documentElement.setAttribute("data-scheme", getScheme());
 }
 
 // ═══ Pulse 单例：Web Audio API 驱动 --pulse 0~1 ═══
@@ -123,7 +157,7 @@ const Pulse = (() => {
       if (ctx.state === "suspended") await ctx.resume();
 
       if (!audioEl) {
-        audioEl = new Audio(AUDIO_URL);
+        audioEl = new Audio(audioSrc());
         audioEl.loop = true;
         audioEl.crossOrigin = "anonymous";
         audioEl.preload = "auto";
@@ -224,6 +258,10 @@ function set(patch) {
   }
   if (patch.scheme === "light" || patch.scheme === "dark") {
     try { localStorage.setItem(LS_SCHEME, patch.scheme); } catch (e) {}
+    applyScheme();
+  } else if (patch.scheme === "auto" || patch.scheme === null) {
+    try { localStorage.removeItem(LS_SCHEME); } catch (e) {}
+    applyScheme();
   }
   if (patch.accent) {
     try { localStorage.setItem(LS_ACCENT, patch.accent); } catch (e) {}
@@ -269,7 +307,50 @@ function subscribe(fn) {
 
 window.__theme = { get: getAll, set, is, styles, subscribe, panic, audio };
 
+// 解析时立即应用一次明暗维度,减少 data-scheme 迟到造成的闪烁
+try { applyScheme(); } catch (e) {}
+
 // ═══ wire Settings DOM ═══
+// 日/夜切换控件(运行时注入到主题选择上方;仅对已接入双态的主题显示)
+function refreshSchemeToggle() {
+  const row = document.getElementById("cfwSchemeRow");
+  if (!row) return;
+  row.style.display = SCHEME_READY.has(getStyle()) ? "" : "none";
+  const stored = getStoredScheme();
+  row.querySelectorAll("button[data-scheme-val]").forEach((b) => {
+    const v = b.getAttribute("data-scheme-val");
+    const on = (v === "auto" && !stored) || v === stored;
+    b.classList.toggle("active", on);
+  });
+}
+
+function ensureSchemeToggle() {
+  if (document.getElementById("cfwSchemeRow")) { refreshSchemeToggle(); return; }
+  const firstRadio = document.querySelector('input[name="cfwTheme"]');
+  if (!firstRadio) return;
+  const opt = firstRadio.closest(".theme-option") || firstRadio.parentElement;
+  const list = opt ? opt.parentElement : null;
+  if (!list || !list.parentElement) return;
+  const row = document.createElement("div");
+  row.id = "cfwSchemeRow";
+  row.className = "scheme-toggle-row";
+  row.innerHTML =
+    '<span class="stg-label">明暗</span>' +
+    '<div class="scheme-seg">' +
+      '<button type="button" data-scheme-val="auto">跟随主题</button>' +
+      '<button type="button" data-scheme-val="light">日间</button>' +
+      '<button type="button" data-scheme-val="dark">夜间</button>' +
+    '</div>';
+  list.parentElement.insertBefore(row, list);
+  row.querySelectorAll("button[data-scheme-val]").forEach((b) => {
+    b.addEventListener("click", () => {
+      set({ scheme: b.getAttribute("data-scheme-val") });
+      refreshSchemeToggle();
+    });
+  });
+  refreshSchemeToggle();
+}
+
 function wireSettings() {
   document.querySelectorAll('input[name="cfwTheme"]').forEach(r => {
     r.checked = (r.value === getStyle());
@@ -278,6 +359,9 @@ function wireSettings() {
       if (STYLES.includes(r.value)) set({ style: r.value });
     });
   });
+
+  ensureSchemeToggle();
+  subscribe(refreshSchemeToggle);
 
   const toggleEl = document.getElementById("lewdAudioToggle");
   if (toggleEl) {

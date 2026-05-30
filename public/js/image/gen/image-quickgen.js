@@ -140,11 +140,14 @@
   }
 
   // ───── 出图 API ─────
+  // 全局画风:读 image-portrait 的 cfw_image_style_v1 追加到提示词末尾
+  function styleSuffix() { try { var t = window.__portrait && window.__portrait.getStyleTags && window.__portrait.getStyleTags(); return (t || '').trim(); } catch (e) { return ''; } }
+  function withStyle(p) { var st = styleSuffix(); return st ? ((p || '') + ', ' + st) : (p || ''); }
   async function genZImage(prompt, n) {
     var r = await fetch('/img/v1/images/generations', {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ prompt: prompt, model: 'z-image-turbo', n: n || 1, size: '1024x1024' })
+      body: JSON.stringify({ prompt: withStyle(prompt), model: 'z-image-turbo', n: n || 1, size: '1024x1024' })
     });
     if (!r.ok) throw new Error('生图失败 ' + r.status + ' ' + (await r.text().catch(function () { return ''; })));
     var j = await r.json();
@@ -155,7 +158,7 @@
   async function genEdit(prompt, srcUrl, onTick) {
     var blob = await (await dlFetch(srcUrl)).blob();
     var fd = new FormData();
-    fd.append('prompt', prompt);
+    fd.append('prompt', withStyle(prompt));
     fd.append('model', 'Qwen-Image-Edit-2511');
     fd.append('num_inference_steps', '4');
     fd.append('guidance_scale', '1.0');

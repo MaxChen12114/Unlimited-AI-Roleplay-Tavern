@@ -112,7 +112,11 @@ const setEmo=(e)=>{const v=(e==null?"neutral":String(e)).trim()||"neutral";local
 // 4.19 P1 fix: 加 card 参数。鱼缸场景 setActive 是 async (await IndexedDB),fishbowl-engine setActiveId 后立刻 sendOne,
 // decorate 读模块级 _card 会拿到上一轮的 card → UI label 偏移一个角色(body speakerName=test1 但气泡 label 显示 test2)。
 // sendOne 现在显式传 characterCard (= asCard || getActiveCard()),不再依赖 _card race。
-function decorate(row,card){const c=card||_card;if(!c||!row||!row.querySelector)return;const a=row.querySelector(".avatar.bot");if(a){a.textContent=c.icon||"\u{1F642}";a.title=c.name||"";}const m=row.querySelector(".meta");if(m&&c.name)m.textContent=c.name;}
+// 4.34 头像对接: window.__avatar 契约 (LS cfw_char_avatar_v1 / 事件 avatar:changed)。有图渲染图片,无图回退 emoji。
+function avatarUrlFor(id){if(!id)return null;try{if(window.__avatar&&typeof window.__avatar.get==="function"){const u=window.__avatar.get(id);if(u)return u;}const raw=localStorage.getItem("cfw_char_avatar_v1");if(raw){const m=JSON.parse(raw);if(m&&m[id])return m[id];}}catch(e){}return null;}
+function applyAvatarEl(el,c){if(!el||!c)return;const url=avatarUrlFor(c.id);el.title=c.name||"";if(url){el.style.backgroundImage='url("'+url+'")';el.style.backgroundSize="cover";el.style.backgroundPosition="center";el.classList.add("has-avatar-img");el.textContent="";}else{el.style.backgroundImage="";el.classList.remove("has-avatar-img");el.textContent=c.icon||"🙂";}}
+window.addEventListener("avatar:changed",(ev)=>{const id=ev&&ev.detail?ev.detail.id:null;const sel=id?'.avatar.bot[data-char-id="'+((window.CSS&&CSS.escape)?CSS.escape(id):id)+'"]':'.avatar.bot[data-char-id]';document.querySelectorAll(sel).forEach(a=>{const cid=a.dataset.charId;if(!cid)return;const card=(_card&&cid===_card.id)?_card:(_allCards.find(x=>x.id===cid)||A.find(x=>x.id===cid)||{id:cid,icon:a.textContent,name:a.title});applyAvatarEl(a,card);});if(mask&&mask.style.display!=="none")render();});
+function decorate(row,card){const c=card||_card;if(!c||!row||!row.querySelector)return;const a=row.querySelector(".avatar.bot");if(a){a.textContent=c.icon||"\u{1F642}";a.title=c.name||"";}if(a){a.dataset.charId=c.id||"";applyAvatarEl(a,c);}const m=row.querySelector(".meta");if(m&&c.name)m.textContent=c.name;}
 
 // UI
 let mask=null,P=null,tab="mine";
@@ -145,6 +149,7 @@ function render(){
   P.querySelector("[data-reset-aff]")?.addEventListener("click",async()=>{await resetAff();render();});
   P.querySelectorAll("[data-pick-scene]").forEach(x=>x.addEventListener("click",(ev)=>{if(ev.target.closest("[data-rmscene]"))return;setActive(x.dataset.pickScene);setTimeout(render,30);}));
   P.querySelectorAll("[data-rmscene]").forEach(x=>x.addEventListener("click",(ev)=>{ev.stopPropagation();if(window.__multi&&window.__multi.removeFromScene)window.__multi.removeFromScene(x.dataset.rmscene);setTimeout(render,30);}));
+  const _la=P.querySelector(".char-avatar-large");if(_la&&_card)applyAvatarEl(_la,_card);
   theme();
 }
 

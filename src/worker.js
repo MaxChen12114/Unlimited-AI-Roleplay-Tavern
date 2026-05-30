@@ -84,13 +84,14 @@ function buildNsfwInstruction(level) {
 function buildReplyStyleInstruction(style) {
   if (style === "wechat") {
     return [
-      "【对话风格 · 微信连发】",
+      "【对话风格 · 微信连发】（最高优先级输出格式，覆盖其他关于字数/篇幅的指令）",
       "请像微信聊天那样自然交流：",
-      "1. 每条消息控制在 1~2 句话、≤3 0 字，不要长篇大论",
-      "2. 一次回复可以发多条消息，消息之间用 || 分隔(英文双竖线)，前端会拆成多个气泡连发",
+      "1. 每条消息控制在 1~2 句话、≤30 字，严禁长篇大论或整段旁白叙事",
+      "2. 只要内容超过 1 句话，就必须拆条，消息之间用 || 分隔(英文双竖线)，前端会拆成多个气泡连发",
       "3. 表达情绪和动作用括号或省略号即可，不要长段旁白、不要环境描写套话",
       "4. 例如：“在呢||刚才出门买东西去了||怎么啦？” 或 “哦哦||不是吧||(眨眼) 你怎么知道的”",
       "5. 可以只发一条(不用 || )，也可以 2~5 条连发，看当下情境自然过渡",
+      "6. 即使剧情激烈、情绪浓烈，也要保持短句连发节奏，绝不要突然写成一大段",
     ].join("\n");
   }
   if (style === "verbose") {
@@ -186,19 +187,25 @@ function buildPropsInstruction(activeProps) {
 // orchestrate（默认 / V1 兼容）：只代表自己 + 看得见其他人发言（反向约束）
 // relay（接龙）：无议题轮转，自由发挥，150-250 字
 // discuss（讨论）：议题驱动，可输出 [next:角色名] 或 [end]，150-250 字
-function buildSceneInstruction(otherNames, fishbowlMode, topic, currentSpeakerName) {
+function buildSceneInstruction(otherNames, fishbowlMode, topic, currentSpeakerName, replyStyle) {
   if (!Array.isArray(otherNames) || !otherNames.length) return "";
   const names = otherNames.filter(n => typeof n === "string" && n.trim()).map(n => n.trim());
   if (!names.length) return "";
   const mode = fishbowlMode === "relay" ? "relay" : fishbowlMode === "discuss" ? "discuss" : "orchestrate";
   const meTag = currentSpeakerName ? `（你是「${currentSpeakerName}」）` : "";
+  // 2026-05-30 / 4.25 (⑩): wechat 风格与鱼缸默认「150-250 字」硬冲突,按 replyStyle 给一致的篇幅指引
+  const lenGuide = replyStyle === "wechat"
+    ? "用微信连发短句风格：每条 1~2 句、≤30 字，多条之间用 || 分隔，绝不要写成长段。"
+    : replyStyle === "verbose"
+      ? "可以写 150-400 字的丰满段落，带动作与神态描写。"
+      : "控制在 150-250 字，保持你的人设。";
 
   if (mode === "relay") {
-    return `【鱼缸接龙模式】\n场上参会者：${names.join("、")}${meTag}。\n- 这是一场没有固定议题的多角色自由对话，由引擎自动轮换发言者。\n- 你只代表你自己说话，绝对不要替其他人发言。\n- 历史里其他参会者的发言对你可见，请自然接话、回应、吐槽，或转移话题。\n- 控制在 150-250 字，保持你的人设。`;
+    return `【鱼缸接龙模式】\n场上参会者：${names.join("、")}${meTag}。\n- 这是一场没有固定议题的多角色自由对话，由引擎自动轮换发言者。\n- 你只代表你自己说话，绝对不要替其他人发言。\n- 历史里其他参会者的发言对你可见，请自然接话、回应、吐槽，或转移话题。\n- 进阶玩法（可选）：如果你想点名让某位参会者接下一句，可在回复末尾追加 [next:角色名]（名字需与参会者完全一致）；想结束这一轮可追加 [end]。标签对用户不可见，由系统解析剥离。\n- ${lenGuide}`;
   }
   if (mode === "discuss") {
     const t = (topic || "").trim() || "(未设定)";
-    return `【鱼缸讨论模式】\n议题：${t}\n场上参会者：${names.join("、")}${meTag}。\n- 这是一场围绕议题的多方讨论，由引擎自动轮换发言者。\n- 你只代表你自己说话，围绕议题表达你的立场和观点。\n- 历史里其他参会者的发言对你可见，请主动回应——表达赞同、反对、补充或提出新角度。\n- 控制在 150-250 字，保持你的人设。\n- 进阶玩法（可选）：如果你强烈希望某位参会者接话，可在回复末尾追加 [next:角色名]；如果你认为议题已收敛、不需再继续，可追加 [end]。标签对用户不可见，由系统解析。`;
+    return `【鱼缸讨论模式】\n议题：${t}\n场上参会者：${names.join("、")}${meTag}。\n- 这是一场围绕议题的多方讨论，由引擎自动轮换发言者。\n- 你只代表你自己说话，围绕议题表达你的立场和观点。\n- 历史里其他参会者的发言对你可见，请主动回应——表达赞同、反对、补充或提出新角度。\n- ${lenGuide}\n- 进阶玩法（可选）：如果你强烈希望某位参会者接话，可在回复末尾追加 [next:角色名]；如果你认为议题已收敛、不需再继续，可追加 [end]。标签对用户不可见，由系统解析。`;
   }
   // orchestrate（V1 默认 / 编排模式，兼容老逻辑）
   return `【多人对话场景】\n你正在与用户以及以下其他角色同处一个场景：${names.join("、")}。\n- 你只代表你自己说话，不要替其他角色发言。\n- 称呼用户和其他角色时使用对应的名字；不必重复介绍自己。\n- 历史里其他角色的发言对你可见，可以回应/吐槽/接话，但保持你自己的人设。`;
@@ -222,13 +229,13 @@ function buildPriorSummaryInstruction(summary) {
 
 // Layer 2 状态聚合层：rel + emo + 好感度阶梯为【当前状态】；道具卡 + 多人场景 + 阈值事件 + 先前摘要 各占一块
 // Phase 4 阶段 11：新增 fishbowlMode/topic/currentSpeakerName 透传给 buildSceneInstruction
-function buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, currentSpeakerName) {
+function buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, currentSpeakerName, replyStyle) {
   const r = RELATION_MAP[rel] || "";
   const e = EMOTION_MAP[emo] !== undefined ? EMOTION_MAP[emo]
     : (emo && emo !== "neutral" ? `你现在的情绪状态：${emo}。` : "");
   const a = getAffectionStage(affection);
   const p = buildPropsInstruction(activeProps);
-  const sc = buildSceneInstruction(sceneOtherNames, fishbowlMode, topic, currentSpeakerName);
+  const sc = buildSceneInstruction(sceneOtherNames, fishbowlMode, topic, currentSpeakerName, replyStyle);
   const th = buildThresholdEventsInstruction(thresholdEvents);
   const sm = buildPriorSummaryInstruction(priorSummary);
   const stateParts = [r, e, a].filter(Boolean);
@@ -240,7 +247,7 @@ function buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, threshol
 //   nsfwLevel >= 1: 跳过 META_IDENTITY, 注入 buildNsfwInstruction(level) (lewd 模式 = 完全解禁)
 //   strictRoleplay === true && nsfwLevel == 0: 注入完整 META_IDENTITY (严格角色扮演)
 //   strictRoleplay === false && nsfwLevel == 0: 注入 META_IDENTITY_SOFT (默认·软提示)
-function buildCharacterSystemPrompt(card, rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, strictRoleplay, nsfwLevel) {
+function buildCharacterSystemPrompt(card, rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, strictRoleplay, nsfwLevel, replyStyle) {
   if (!isValidCard(card)) return "";
   const currentSpeakerName = card.name || "";
   const n = Number(nsfwLevel) || 0;
@@ -252,7 +259,7 @@ function buildCharacterSystemPrompt(card, rel, emo, affection, activeProps, scen
   } else {
     baseLayer = META_IDENTITY_SOFT;
   }
-  return [baseLayer, buildLayer1(card), buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, currentSpeakerName)].filter(Boolean).join("\n\n---\n\n");
+  return [baseLayer, buildLayer1(card), buildLayer2(rel, emo, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, currentSpeakerName, replyStyle)].filter(Boolean).join("\n\n---\n\n");
 }
 
 // ────────────────────────────
@@ -574,7 +581,7 @@ async function handleChat(request, env) {
   const replyStyle = (payload?.replyStyle === "wechat" || payload?.replyStyle === "verbose") ? payload.replyStyle : "default";
   // Worker 端拼装三层 system prompt (基线层 + Layer1 + Layer2 状态聚合层)
   // 基线层根据 strictRoleplay/nsfwLevel 三态切换 (META_IDENTITY / META_IDENTITY_SOFT / buildNsfwInstruction)
-  const characterPrompt = buildCharacterSystemPrompt(characterCard, relation, emotion, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, strictRoleplay, nsfwLevel);
+  const characterPrompt = buildCharacterSystemPrompt(characterCard, relation, emotion, affection, activeProps, sceneOtherNames, thresholdEvents, priorSummary, fishbowlMode, topic, strictRoleplay, nsfwLevel, replyStyle);
 
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   const upstreamMessages = [];

@@ -13,12 +13,12 @@
   var LS_LASTAT   = "cfw_chat_image_lastat_v1";    // 上次发图时间戳
   var LS_COUNT    = "cfw_chat_image_count_v1";     // {slotKey:count} 每会话计数
 
-  var SIGNAL_RE = /\[\[发图[:：]([^\]]*)\]\]/g;        // [[发图:场景]] 双括号(中英文冒号都吃)
+  var SIGNAL_RE = /\[{1,2}发图[:：]([^\]]*)\]{1,2}/g;        // [[发图:场景]] 双括号(中英文冒号都吃)
 
   function lsGet(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function isEnabled() { return lsGet(LS_ENABLED, "0") === "1"; }
-  function cooldownSec() { var n = parseInt(lsGet(LS_COOLDOWN, "60"), 10); return isNaN(n) ? 60 : Math.max(0, n); }
+  function cooldownSec() { var n = parseInt(lsGet(LS_COOLDOWN, "20"), 10); return isNaN(n) ? 20 : Math.max(0, n); }
   function capPerChat() { var n = parseInt(lsGet(LS_CAP, "6"), 10); return isNaN(n) ? 6 : Math.max(0, n); }
 
   function slotKey() {
@@ -32,7 +32,7 @@
   // ─── 独立注入层:发图能力指令,追加到核心 prompt 之后(经 extraSystemPrompts)───
   function getInjection() {
     if (!isEnabled()) return "";
-    return "\n\n【发图能力】当对话情景适合「发一张自拍/照片」时(对方想看照片、你想分享当下场景、气氛合适),你可以在整条回复的最末尾追加一个发图信号:[[发图:简短场景描述]]。场景用一句话写清画面(人物姿态/表情/穿着/环境/光线),只描述这一张照片,不写其他内容。信号必须用双方括号包裹且放在消息最后。不需要发图时完全不要输出此信号;不要每条都发,每隔几轮最多一次。";
+    return "\n\n【发图能力】当对话情景适合「发一张自拍/照片」时(对方想看照片、你想分享当下场景、气氛合适),你可以在整条回复的最末尾追加一个发图信号:[发图:简短场景描述]。场景用一句话写清画面(人物姿态/表情/穿着/环境/光线),只描述这一张照片,不写其他内容。信号用方括号包裹且放在消息最后(单双括号都可识别,单括号即可)。不需要发图时完全不要输出此信号;不要每条都发,每隔几轮最多一次。";
   }
 
   // ─── 从 AI 完整回复抠出发图信号 + 返回清理后的正文(取最后一个信号)───
@@ -62,13 +62,32 @@
   }
 
   // ─── 扩写编排(raw:本地模板;TODO 接图像侧 gpt-oss-120b 免费扩写链路)───
-  function expandScene(scene, card) {
+  function pickFreeModel() {
+    try { var list = window.APP_MODELS_FREE || []; for (var i = 0; i < list.length; i++) { if ((list[i].id || '').indexOf('gpt-oss') >= 0) return list[i].id; } } catch (e) {}
+    return 'openai/gpt-oss-120b';
+  }
+  var EXPAND_SYS = 'You are an image-prompt engineer for an instruction-based image-edit model that keeps the SAME person from a base selfie. Given a short Chinese scene note, output ONE single-line English description of pose, facial expression, outfit, location/background, lighting, mood, and a camera framing that fits the scene (close selfie, full-body, or wide environmental shot as appropriate). Do NOT describe face or identity (the base photo fixes those). Output ONLY the description, no quotes.';
+  function localExpand(scene, card) {
     var name = (card && card.name) ? card.name : "角色";
     var look = (card && (card.identity || card.personality)) ? ("," + (card.identity || card.personality)) : "";
     return Promise.resolve("一张" + name + "的自拍照" + look + "。画面:" + scene + "。写实、自然光、手机自拍视角、清晰。");
   }
 
   // ─── 出图(优先契约,缺省 mock)───
+  // expander: free gpt-oss-120b expands the Chinese 发图 signal into an English selfie-scene description; falls back to local template on failure / standalone.
+  async function expandScene(scene, card) {
+    var fallback = localExpand(scene, card);
+    try {
+      var note = scene;
+      if (card) { var cap = function (x) { x = String(x || ''); return x.length > 200 ? x.slice(0, 200) : x; }; var c = []; if (card.name) c.push('role:' + cap(card.name)); if (card.identity) c.push('identity:' + cap(card.identity)); if (card.personality) c.push('persona:' + cap(card.personality)); if (c.length) note = c.join(', ') + ' / scene:' + scene; }
+      var res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'free', model: pickFreeModel(), use_builtin_persona: false, custom_system_prompt: EXPAND_SYS, replyStyle: 'default', messages: [{ role: 'user', content: note }] }) });
+      if (!res.ok) return fallback;
+      var reader = res.body.getReader(), dec = new TextDecoder(), out = '';
+      while (true) { var stp = await reader.read(); if (stp.done) break; var lines = dec.decode(stp.value, { stream: true }).split('\n'); for (var i = 0; i < lines.length; i++) { var ln = lines[i]; if (ln.indexOf('data: ') !== 0) continue; var ss = ln.slice(6).trim(); if (!ss || ss === '[DONE]') continue; try { var pj = JSON.parse(ss); var d = pj.choices && pj.choices[0] && pj.choices[0].delta && pj.choices[0].delta.content; if (d) out += d; } catch (e) {} } }
+      out = out.trim().replace(/^["'`]+|["'`]+$/g, '').trim();
+      return out || fallback;
+    } catch (e) { return fallback; }
+  }
   function callSendPhoto(charId, scenePrompt, baseImageUrl) {
     if (window.__chatImage && window.__chatImage.sendPhoto) {
       return Promise.resolve(window.__chatImage.sendPhoto({ characterId: charId, scenePrompt: scenePrompt, baseImageUrl: baseImageUrl }));

@@ -97,6 +97,12 @@
         <span class="sidebar-btn-label">GitHub</span>
       </a>
 
+      <!-- 图像工具页入口:独立 /image/ 全功能工作室(文生图/改图) -->
+      <a class="sidebar-btn" id="imageStudioBtn" href="/image/" target="_blank" rel="noopener" title="图像工具页:文生图 / 改图(独立页,新标签打开)">
+        <span class="sidebar-btn-icon">💼</span>
+        <span class="sidebar-btn-label">图像工具页</span>
+      </a>
+
       <!-- 4.7 解限编辑器入口：项目灵魂的 JSON 资产编辑壳 -->
       <button class="sidebar-btn" id="unlimitedEditorBtn" data-dev-only title="🛠 解限编辑器（开发者）：编辑 Preset / 角色 / 世界观 / UI 配置的 JSON 资产">
         <span class="sidebar-btn-icon">🛠</span>
@@ -185,10 +191,10 @@
     </div>
 
     <div class="input-floating">
-      <div class="composer-toolbar">
-        <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关(仅快速模式生效)">🧠 思考关</button>
-      </div>
+      <!-- 4.26 ⑦：思考按钮并入下方输入框内联，composer-toolbar 留空兜底（鱼缸 mode row 等若挂这里仍可用；:empty 时 CSS 隐藏不占位） -->
+      <div class="composer-toolbar"></div>
       <div class="input-inner" id="composer">
+        <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关(仅快速模式生效)">🧠 思考关</button>
         <textarea id="msg" rows="1" placeholder="Message..."></textarea>
         <button id="sendBtn" title="发送" aria-label="发送">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -950,28 +956,47 @@
 
 <!-- 脚本加载顺序:鉴权 → 同步 → 基础模块 → app.js 主应用 → 面板 UI 模块 → 交互增强 -->
 <!-- auth.js 必须最早加载:它拦截全局 fetch,给 /sync 和 /api/* 自动注入 Authorization header -->
-<script src="/auth.js"></script>
+<script src="/js/text/core/auth.js"></script>
 <!-- 4.17: dev.js 必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入 -->
-<script src="/dev.js"></script>
-<script src="/config.js"></script>
-<script src="/character.js"></script>
-<script src="/multi-agent.js"></script>
-<script src="/props.js"></script>
-<script src="/theme.js"></script>
+<script src="/js/text/core/dev.js"></script>
+<script src="/js/text/core/config.js"></script>
+<script src="/js/text/data/character.js"></script>
+<script src="/js/text/engine/multi-agent.js"></script>
+<script src="/js/text/data/props.js"></script>
+<script src="/js/text/ui/theme.js"></script>
 <!-- sync.js 在 app.js 之前:启动时如已启用云同步会先 pull,避免 app.js init 读到老数据 -->
-<script src="/sync.js"></script>
-<script src="/app.js"></script>
+<script src="/js/text/data/sync.js"></script>
+<script src="/js/text/engine/app.js"></script>
 <!-- 鱼缸引擎 V3:必须在 app.js 之后(依赖 window.__app.sendOne / abortCurrent / injectModeratorMsg) -->
-<script src="/fishbowl-engine.js"></script>
-<script src="/presets-ui.js"></script>
-<script src="/cost-log-ui.js"></script>
+<script src="/js/text/engine/fishbowl-engine.js"></script>
+<script src="/js/text/ui/presets-ui.js"></script>
+<script src="/js/text/ui/cost-log-ui.js"></script>
 <!-- 2026-05-29 微信发图 文本侧编排(raw):配合图像侧 window.__chatImage 契约,契约未上线走 mock -->
 <!-- 2026-05-29 image side chat-photo contract (raw): provides window.__chatImage; load before chat-image.js -->
-<script src="/image-chat.js"></script>
-<script src="/chat-image.js"></script>
-<script src="/chat-ux.js"></script>
+<script src="/js/image/core/image-chat.js"></script>
+<script src="/js/image/core/chat-image.js"></script>
+<script src="/js/text/ui/chat-ux.js"></script>
 <!-- 4.7 解限编辑器（Unlimited Editor）：4-tab Modal · LS+IDB 混合存储 -->
-<script src="/unlimited-editor.js"></script>
+<script src="/js/text/ui/unlimited-editor.js"></script>
+<!-- Phase 2 图像嵌入三模块(顺序 embed→quickgen→gallery):
+     image-embed.js  工坊 Modal,运行时自动解锁左栏「图像(生/改)」按钮 + 往设置注入 图像 API Key 卡(LS cfw_image_key_v1)
+     image-quickgen.js 一键生/改图,注入右栏 #rightSidebar .sidebar-slot-placeholder(桌面) + 移动端 avatar/scene tab;提示词走 /api/chat 免费模式零费用
+     image-gallery.js 工坊内画廊 tab + 收藏,依赖 /img/r2/* /img/gallery;未配 R2/KV(IMAGES_BUCKET/IMAGES_SYNC)时返 501 → 纯本地降级,不阻塞 -->
+<script src="/js/image/gen/image-embed.js"></script>
+<script src="/js/image/gen/image-quickgen.js"></script>
+<script src="/js/image/store/image-gallery.js"></script>
+<!-- 2026-05-30 图像额度每日计数(单设备本地估算):fetch 层拦截 /img/v1 生成端点按张数累加今日用量 + Settings 计数卡 -->
+<script src="/js/image/quota/image-quota.js"></script>
+<!-- 2026-05-30 角色立绘桥接:读角色卡拼提示词→z-image 出半身立绘→一键设为发图基准图 + 全局画风设置 -->
+<script src="/js/image/gen/image-portrait.js"></script>
+<!-- 2026-05-30 提示词缓存去重:包 fetch 拦截重复生图,命中复用不计额度;须在 image-quota 之后加载 -->
+<script src="/js/image/store/image-cache.js"></script>
+<!-- 2026-05-30 纯本地画廊闭环:fetch 观察生图/改图→存 IndexedDB,每张设基准/插入/再改;须在 image-cache 之后加载 -->
+<script src="/js/image/store/image-album.js"></script>
+<!-- 2026-05-30 表情差分包:基于基准图 Qwen-Edit 只改表情,依赖 image-chat 的 editImage -->
+<script src="/js/image/gen/image-expressions.js"></script>
+<!-- 2026-05-30 角色头像:以基准图裁近景头像(可选表情),存 cfw_char_avatar_v1+发 avatar:changed -->
+<script src="/js/image/gen/image-avatar.js"></script>
 <!-- 4.9 删除 4.6 折叠 IIFE:原本手机默认 .fishbowl-side-panel.collapsed 只显 header 一条,与 4.8 鱼缸 tab toggle 冲突,导致打开关闭都会有「留一条 header」挡住思考按钮。改为完全靠 4.8 body.fishbowl-shown 切换整个面板 display,不留任何残影。.collapsed CSS 规则保留为 dead code(无 JS 加 class 不生效)。 -->
 </body>
 </html>

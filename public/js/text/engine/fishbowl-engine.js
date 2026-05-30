@@ -20,6 +20,7 @@ const LSSTRAT  = "cfw_fishbowl_strategy_v1"; // "round-robin" | "ai-pick"
 const MAX_PARTICIPANTS = 6;
 const MAX_ROUNDS_HARD  = 1000;  // v4.9 从 30 提到 1000：实质取消轮数限制，仅防意外离开爆资金
 const DEFAULT_MAX      = 8;
+const MAX_RELAY_STREAK = 5;     // v4.21 智能编排:连续 AI 指名接力上限,超出强制回轮询,防两人霸场
 const TICK_SLEEP_MS    = 800;
 const INSERT_DEBOUNCE  = 200;
 
@@ -32,6 +33,7 @@ let pendingTimer = null;
 let abortFlag    = false;
 let lastSpeaker  = null;
 let lastNextHint = null;
+let relayStreak  = 0;   // v4.21 连续 AI 指名接力计数(命中轮询即清零)
 let listeners    = [];
 // 鱼缸 V3 · 结束态保留(不再 1.5s 强制回 orchestrate)
 let endStats    = null; // { totalRounds, endReason, endedAt, durationSec, topic, mode }
@@ -80,15 +82,58 @@ function getParticipants() {
   return m.getSceneCards().slice(0, MAX_PARTICIPANTS);
 }
 
+// ── 名字归一化匹配（v4.21 智能编排:精确命中 → 归一化 → 包含）──
+function normName(s) {
+  return String(s == null ? "" : s)
+    .replace(/[【】\[\]（）()「」『』"'`’‘“”\s,，.。!！?？~～·\-—_]/g, "")
+    .toLowerCase();
+}
+function matchByName(parts, hint) {
+  if (!hint || !parts.length) return null;
+  const raw = String(hint).trim();
+  // 1. 精确命中
+  let hit = parts.find(c => c.name === raw);
+  if (hit) return hit;
+  // 2. 归一化命中(去装饰符/标点/空白/大小写)
+  const nh = normName(raw);
+  if (!nh) return null;
+  hit = parts.find(c => normName(c.name) === nh);
+  if (hit) return hit;
+  // 3. 包含命中(双向;两侧归一化名长度≥2,避免单字误伤)
+  hit = parts.find(c => {
+    const cn = normName(c.name);
+    if (!cn || cn.length < 2 || nh.length < 2) return false;
+    return cn.includes(nh) || nh.includes(cn);
+  });
+  return hit || null;
+}
+
 // ── 发言者策略 ──
+// discuss + ai-pick:优先按上一发言者的 [next:X] 指名接力(精确名字命中),
+// 连续接力 ≤ MAX_RELAY_STREAK 轮,超出/命中失败/指向自己 → 回退纯轮询(并清零接力计数)。
+// relay / round-robin:始终纯轮询,不受指名影响(保持既有行为)。
 function pickNext(parts) {
   if (!parts.length) return null;
-  if (getMode() === "discuss" && getStrategy() === "ai-pick" && lastNextHint) {
-    const hit = parts.find(c => c.name === lastNextHint);
+  // 2026-05-30 / 4.25 修复「叫人叫不出来」: 接龙 + 讨论 两种模式都启用 AI 指名接力,
+  // 不再要求 strategy === "ai-pick"(根本没有 UI 开它,导致 [next:X] 永远被忽略)。
+  if ((getMode() === "discuss" || getMode() === "relay") && lastNextHint) {
+    const hint = lastNextHint;
     lastNextHint = null;
-    if (hit) return hit;
-    // 找不到对应角色 → 退化轮询
+    if (relayStreak < MAX_RELAY_STREAK) {
+      const hit = matchByName(parts, hint);
+      // 命中且不是上一位(避免同一人连说) → 采纳接力
+      if (hit && hit.name !== lastSpeaker) {
+        relayStreak++;
+        const hi = parts.indexOf(hit);
+        if (hi >= 0) speakerIndex = hi + 1; // 同步轮询游标到接力者下家
+        return hit;
+      }
+      // 命中失败 / 指向自己 → 落入轮询
+    }
+    // 超出接力上限 → 强制轮询
   }
+  // 纯轮询(AI 指名链断或不适用 → 清零接力计数)
+  relayStreak = 0;
   const p = parts[speakerIndex % parts.length];
   speakerIndex++;
   return p;
@@ -111,6 +156,7 @@ async function flushPending() {
   const merged = pending.join("\n").trim();
   pending = [];
   if (!merged) return;
+  relayStreak = 0; // v4.21 用户介入 → 重置接力计数,下一段重新允许 ≤5 轮指名接力
   if (window.__app && window.__app.injectModeratorMsg) {
     try { await window.__app.injectModeratorMsg(merged); }
     catch (e) { console.warn("[fishbowl] injectModeratorMsg failed:", e); }
@@ -166,7 +212,8 @@ async function runLoop() {
       }
       // 5. 解析标签
       const tags = parseTags(reply || "");
-      if (getMode() === "discuss" && getStrategy() === "ai-pick" && tags.next) {
+      // 4.25: relay/discuss 都记录 [next:X] 指名,交给 pickNext 接力
+      if ((getMode() === "discuss" || getMode() === "relay") && tags.next) {
         lastNextHint = tags.next;
       }
       if (tags.end) {
@@ -215,6 +262,7 @@ function resetEnded() {
   speakerIndex = 0;
   lastSpeaker = null;
   lastNextHint = null;
+  relayStreak = 0;
   emit();
 }
 
@@ -238,6 +286,7 @@ async function start() {
   currentRound = 0;
   speakerIndex = 0;
   lastNextHint = null;
+  relayStreak = 0;
   startedAt = Date.now();
   emit();
   await runLoop();

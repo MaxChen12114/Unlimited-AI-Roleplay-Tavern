@@ -541,7 +541,9 @@ button#sendBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
   border: 1px solid #2a2a2a;
 }
 .theme-swatch-minimal {
-  background: linear-gradient(135deg, #0b0b0b 0%, #1f1f1f 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f1f1ef 100%);
+  border: 1px solid #e3e3e0;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.6);
 }
 .theme-swatch-glass {
   background:
@@ -2811,6 +2813,9 @@ html[data-theme="lewd-doll"] #syncStatusIndicator { background: rgba(255,255,255
     right: 240px;
     width: auto;
   }
+  /* 2026-05-30 / 4.25 修复「电脑端顶栏按钮被卡在页面后面」:
+     桌面端取消 760px 限制,让顶栏用满中间栏宽度,所有按钮(模式/解限/同步/⚙️)平铺不溢出、不需横滑、不被裁切。 */
+  .topbar-shell { max-width: none; }
 }
 
 /* ─── 手机端:左栏变抽屉 + 右栏隐藏 + topbar 不被遮挡 ─── */
@@ -3323,8 +3328,8 @@ html[data-theme="lewd-doll"] #topbar #personaToggle:hover {
 body.ue-open { overflow: hidden; }
 
 #unlimitedEditor {
-  width: min(1040px, 96vw);
-  max-height: 88vh;
+  width: min(840px, 92vw);
+  max-height: 82vh;
   display: flex;
   flex-direction: column;
   background: #0e0e10;
@@ -3413,7 +3418,7 @@ body.ue-open { overflow: hidden; }
 .ue-body {
   flex: 1;
   overflow-y: auto;
-  padding: 18px 22px;
+  padding: 14px 18px;
   background: #1a1a1f;
 }
 
@@ -3426,10 +3431,10 @@ body.ue-open { overflow: hidden; }
 .ue-panel-icon { font-size: 22px; }
 .ue-panel-name { font-size: 16px; font-weight: 600; color: #fff; }
 .ue-panel-desc {
-  font-size: 13px;
+  font-size: 12.5px;
   color: #aaa;
-  line-height: 1.6;
-  margin: 0 0 18px;
+  line-height: 1.55;
+  margin: 0 0 12px;
 }
 
 .ue-placeholder {
@@ -3789,6 +3794,538 @@ html[data-theme="lewd-doll"] .settings-footer {
   background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,.96) 35%);
   border-top-color: rgba(139,0,51,.15);
 }
+
+/* ═══════════════════════════════
+   Phase 4 阶段 4.26 · ⑦ 思考按钮并入输入框（内联）
+   - composer-toolbar 不再单独占一行：空时隐藏
+   - #thinkToggle 移入 .input-inner，作为输入框内左侧小药丸，与发送键左右呼应
+   - 颜色沿用 .chip-btn 各主题规则（这里只调几何尺寸/对齐），active 态仍由 .chip-btn.active 接管
+   ═══════════════════════════════ */
+.composer-toolbar:empty { display: none; margin: 0; }
+.input-inner #thinkToggle {
+  align-self: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 5px 11px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+@media (max-width: 1023px) {
+  .input-inner #thinkToggle { padding: 4px 9px; font-size: 11px; }
+}
+
+/* ═══════════════════════════════
+   Phase 4 阶段 4.27 · 全局视觉打磨 v1（提设计感，尊重各主题气质）
+   思路：真正“没设计感”的是基底结构层（minimal 纯平色块），而这层被所有主题共享。
+   本版：基底提质（气泡层次/头像立体/字体渲染/输入框质感）+ 全主题通用（选区/聚焦环按各自 accent）。
+   不动任何一个主题已调好的配色（他们的 .bubble/.pill 等特异度更高，会覆盖本基底规则）。
+   ═══════════════════════════════ */
+
+/* —— 全主题通用：更清晰的字体渲染 —— */
+html, body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* —— minimal 基底气泡：纯平 → 微层次 + AI/user 微渐变（主题会各自覆盖） —— */
+.bubble {
+  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 3px 10px rgba(0,0,0,.12);
+}
+.bubble.ai {
+  background: linear-gradient(180deg, #181818, #121212);
+  border-color: #272727;
+}
+.bubble.user {
+  background: linear-gradient(180deg, #242424, #1b1b1b);
+  border-color: #303030;
+}
+
+/* —— 头像：描边光晕 + 轻微立体（全主题通用，主题只换背景色） —— */
+.avatar {
+  box-shadow: 0 2px 6px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* —— 顶栏胶囊/图标按钮：基底微立体（主题设了 box-shadow 的会覆盖） —— */
+.pill, .iconbtn {
+  box-shadow: 0 1px 2px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+/* —— meta 时间戳/名签：字距与字重精修（全主题继承，颜色随主题） —— */
+.meta {
+  font-size: 11.5px;
+  letter-spacing: .2px;
+  font-weight: 500;
+  opacity: .92;
+}
+
+/* —— minimal 发送键：纯平 → 微渐变 + 质感阴影（主题覆盖其渐变） —— */
+button#sendBtn {
+  background: linear-gradient(180deg, #474747, #343434);
+  box-shadow: 0 2px 8px rgba(0,0,0,.32);
+}
+
+/* —— 文本选区：各主题用自己的强调色 —— */
+::selection { background: rgba(140,120,230,.32); }
+html[data-theme="glass"] ::selection { background: rgba(99,102,241,.22); }
+html[data-theme="lewd-peach"] ::selection { background: rgba(255,107,157,.34); color: #fff; }
+html[data-theme="lewd-doll"] ::selection { background: rgba(224,48,96,.26); color: #4A0820; }
+
+/* —— 输入框聚焦环：各主题随 accent（聚焦时才亮） —— */
+.input-inner:focus-within {
+  border-color: rgba(140,120,230,.5);
+  box-shadow: 0 10px 30px rgba(0,0,0,.45), 0 0 0 3px rgba(140,120,230,.14);
+}
+html[data-theme="glass"] .input-inner:focus-within {
+  border-color: rgba(59,130,246,.5);
+  box-shadow: 0 12px 40px rgba(60,80,140,.14), 0 0 0 3px rgba(59,130,246,.14);
+}
+html[data-theme="lewd-peach"] .input-inner:focus-within {
+  border-color: rgba(255,107,157,.6);
+  box-shadow: 0 10px 28px rgba(255,70,105,.22), 0 0 0 3px rgba(255,107,157,.16);
+}
+html[data-theme="lewd-doll"] .input-inner:focus-within {
+  border-color: rgba(224,48,96,.6);
+  box-shadow: 0 12px 30px rgba(224,48,96,.18), 0 0 0 3px rgba(224,48,96,.14);
+}
+
+/* —— 发送键发光按主题 accent（hover），minimal 走中性高光 —— */
+button#sendBtn:hover { box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+
+/* ═══════════════════════════════
+   Phase 4 阶段 4.28 · 各主题“气质”分化（风格 > 配色）
+   - minimal    = Notion 风：极致克制、平、锐、留白
+   - glass      = 动态设计网页感：玻璃质感 + 背景缓动 + hover 浮起
+   - lewd-peach = 极致 NSFW 情欲（下一批）
+   - lewd-doll  = 二次元 hentai lewd（下一批）
+   注：minimal = 无 data-theme（theme.js removeAttribute），故用 html:not([data-theme]):not([data-scheme="dark"]) 精确命中。
+   注：配色不再是主要区分点，差异主要由结构/形状/动效体现。
+   ════════════════════════════════ */
+
+/* ─── minimal = Notion 风（平 / 锐 / 克制） ─── */
+html:not([data-theme]):not([data-scheme="dark"]) .bubble {
+  background: #1a1a1a;
+  border: 1px solid #262626;
+  border-radius: 10px;
+  box-shadow: none;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.ai   { background: #161616; }
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.user { background: #232323; }
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner { border-radius: 13px; box-shadow: 0 2px 12px rgba(0,0,0,.32); }
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn { background: #2c2c2c; box-shadow: none; }
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn:hover { background: #383838; box-shadow: none; transform: none; }
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner:focus-within {
+  border-color: #4a5160;
+  box-shadow: 0 2px 12px rgba(0,0,0,.35), 0 0 0 3px rgba(120,130,150,.12);
+}
+html:not([data-theme]):not([data-scheme="dark"]) .avatar { box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+html:not([data-theme]):not([data-scheme="dark"]) ::selection { background: rgba(120,130,150,.28); }
+
+/* ─── glass = 动态设计网页感（玻璃 + 缓动 + 浮起） ─── */
+@keyframes glass-bg-drift {
+  0%, 100% { background-position: 0% 0%, 100% 0%, 50% 100%, 0 0; }
+  50%      { background-position: 25% 18%, 72% 28%, 42% 82%, 0 0; }
+}
+html[data-theme="glass"] body {
+  background-size: 200% 200%, 200% 200%, 200% 200%, auto;
+  animation: glass-bg-drift 26s ease-in-out infinite;
+}
+html[data-theme="glass"] .bubble {
+  border-radius: 24px;
+  transition: transform .28s ease, box-shadow .28s ease;
+}
+html[data-theme="glass"] .row:hover .bubble {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(60,80,140,.16);
+}
+html[data-theme="glass"] .iconbtn:hover,
+html[data-theme="glass"] .sidebar-btn:hover:not([disabled]) {
+  transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="glass"] body { animation: none; }
+}
+/* ↑ 4.28 minimal+glass 气质 ↑ */
+
+/* ─── lewd-peach = 极致 NSFW 情欲（浓烈 / 慷懒 / 暗昧光晕） ─── */
+/* 注：不覆盖 .bubble box-shadow——保留 --pulse 心跳呼吸这个招牌效果 */
+html[data-theme="lewd-peach"] .bubble {
+  transition-duration: .45s;
+}
+html[data-theme="lewd-peach"] .bubble.ai   { border-radius: 22px 22px 22px 7px; }
+html[data-theme="lewd-peach"] .bubble.user { border-radius: 22px 22px 7px 22px; }
+html[data-theme="lewd-peach"] .meta {
+  font-style: italic;
+  letter-spacing: .5px;
+}
+html[data-theme="lewd-peach"] .input-inner:focus-within {
+  box-shadow: 0 0 0 3px rgba(255,107,157,.30), 0 8px 30px rgba(255,90,140,.22);
+}
+
+/* ─── lewd-doll = 二次元 hentai lewd（圆润 / 弹跳 / 贴纸 / 圆体字） ─── */
+html[data-theme="lewd-doll"] .bubble,
+html[data-theme="lewd-doll"] .meta,
+html[data-theme="lewd-doll"] .pill,
+html[data-theme="lewd-doll"] .chip-btn {
+  font-family: ui-rounded, "Hiragino Maru Gothic ProN", "Quicksand", var(--chat-font-family);
+}
+html[data-theme="lewd-doll"] .bubble {
+  border-radius: 20px;
+  border-width: 1.5px;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease;
+}
+html[data-theme="lewd-doll"] .row:hover .bubble {
+  transform: scale(1.015) translateY(-1px);
+}
+html[data-theme="lewd-doll"] .avatar {
+  border: 2px solid rgba(255,255,255,.65);
+}
+html[data-theme="lewd-doll"] button#sendBtn {
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+html[data-theme="lewd-doll"] button#sendBtn:hover {
+  transform: translateY(-1px) scale(1.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="lewd-doll"] .row:hover .bubble,
+  html[data-theme="lewd-doll"] button#sendBtn:hover { transform: none; }
+}
+/* ↑ 4.28 lewd-peach + lewd-doll 气质 ↑ */
+
+/* ═══════════════════════════════
+   Phase 4 阶段 4.29 · 极简主题 = 纯白 Notion 风（大改：深色 → 白底亮色）
+   目标：让极简与三个深色/亮色主题拉开最大差距 —— 干净、克制、Notion 原生白。
+   实现：html:not([data-theme]):not([data-scheme="dark"]) 命中 minimal（theme.js 对 minimal removeAttribute），
+   系统性覆盖 token + 所有基底深色硬编码（顶栏/气泡/输入/弹窗/侧栏/移动 tab…）。
+   Notion 调色板：底 #fff · 次面 #fbfbfa · 灰块 #f7f7f5 · 字 #37352f · 次字 #787774
+                 · 描边 #e9e9e7 · 强调蓝 #2383e2
+   分 A/B/C 三段落地（A=主聊天+顶栏+输入，B=弹窗/表单，C=侧栏/移动/杂项）
+   ════════════════════════════════ */
+
+/* —— 4.29-A token + 主聊天 / 顶栏 / 输入 —— */
+html:not([data-theme]):not([data-scheme="dark"]) {
+  --bg: #ffffff;
+  --border: #e9e9e7;
+  --muted: #787774;
+  --bubble-ai: #f7f7f5;
+  --bubble-user: #2383e2;
+  --input-bg: #ffffff;
+  --input-border: #e3e3e0;
+  --btn-bg: #2383e2;
+  --btn-bg-hover: #1a73d1;
+}
+html:not([data-theme]):not([data-scheme="dark"]) body { color: #37352f; }
+
+html:not([data-theme]):not([data-scheme="dark"]) #topbar {
+  background: linear-gradient(to bottom, rgba(255,255,255,.92), rgba(255,255,255,.7));
+  border-bottom: 1px solid #e9e9e7;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .pill,
+html:not([data-theme]):not([data-scheme="dark"]) .iconbtn {
+  background: #ffffff;
+  border: 1px solid #e9e9e7;
+  color: #37352f;
+  box-shadow: 0 1px 2px rgba(15,15,15,.04);
+}
+html:not([data-theme]):not([data-scheme="dark"]) .iconbtn:hover { background: #f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) select { background:#fff; color:#37352f; border:1px solid #e3e3e0; }
+html:not([data-theme]):not([data-scheme="dark"]) select option { background:#fff; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) #topbar .model-label { color:#787774; font-weight:500; }
+html:not([data-theme]):not([data-scheme="dark"]) #topbar #costDisplay.topbar-cost-inline {
+  background:#fff; border:1px solid #e9e9e7; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) #topbar #personaToggle {
+  background:#fff; border:1px solid #e9e9e7; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) #topbar #personaToggle:hover {
+  background:#f1f1ef; box-shadow:0 2px 8px rgba(35,131,226,.18);
+}
+html:not([data-theme]):not([data-scheme="dark"]) #syncStatusIndicator {
+  background:#fff; border:1px solid #e9e9e7; color:#787774;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .avatar { box-shadow: 0 1px 2px rgba(15,15,15,.08); }
+html:not([data-theme]):not([data-scheme="dark"]) .avatar.bot {
+  background: linear-gradient(135deg, #f1f1ef, #e3e3e0);
+  border:1px solid #e9e9e7; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .avatar.human {
+  background: linear-gradient(135deg, #e6e6e3, #d6d6d2);
+  border:1px solid #e9e9e7; color:#37352f;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .bubble {
+  background:#f7f7f5; border:1px solid #e9e9e7; border-radius:10px;
+  box-shadow:none; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.ai { background:#f7f7f5; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .bubble.user { background:#2383e2; color:#fff; border-color:#2383e2; }
+html:not([data-theme]):not([data-scheme="dark"]) .meta,
+html:not([data-theme]):not([data-scheme="dark"]) .stats { color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner {
+  background:#fff; border:1px solid #e3e3e0; border-radius:13px;
+  box-shadow: 0 4px 16px rgba(15,15,15,.08);
+}
+html:not([data-theme]):not([data-scheme="dark"]) textarea#msg { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) textarea#msg::placeholder { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .input-inner:focus-within {
+  border-color:#2383e2;
+  box-shadow: 0 4px 16px rgba(15,15,15,.10), 0 0 0 3px rgba(35,131,226,.16);
+}
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn { background:#2383e2; color:#fff; box-shadow:none; }
+html:not([data-theme]):not([data-scheme="dark"]) button#sendBtn:hover {
+  background:#1a73d1; box-shadow:0 2px 8px rgba(35,131,226,.3); transform:translateY(-1px);
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .chip-btn { background:#fff; border:1px solid #e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .chip-btn:hover:not(:disabled) { background:#f1f1ef; color:#37352f; border-color:#e3e3e0; }
+html:not([data-theme]):not([data-scheme="dark"]) .chip-btn.active { background: rgba(35,131,226,.12); border-color: rgba(35,131,226,.42); color:#1a73d1; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .reasoning-block { background:#fbfbfa; border-color:#e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .reasoning-block .reasoning-text { border-top-color:#ececea; color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) ::selection { background: rgba(35,131,226,.18); }
+html:not([data-theme]):not([data-scheme="dark"]) ::-webkit-scrollbar-thumb { background: rgba(55,53,47,.18); }
+/* —— 4.29-A 结束 —— */
+
+/* —— 4.29-B 弹窗 / 表单 / 角色面板 / 预设 / 费用 / 主题选项 —— */
+html:not([data-theme]):not([data-scheme="dark"]) #settingsMask,
+html:not([data-theme]):not([data-scheme="dark"]) .char-panel-mask,
+html:not([data-theme]):not([data-scheme="dark"]) #presetEditMask,
+html:not([data-theme]):not([data-scheme="dark"]) #unlimitedEditorMask { background: rgba(15,15,15,.32); }
+
+html:not([data-theme]):not([data-scheme="dark"]) #settings,
+html:not([data-theme]):not([data-scheme="dark"]) .char-panel,
+html:not([data-theme]):not([data-scheme="dark"]) #presetEdit,
+html:not([data-theme]):not([data-scheme="dark"]) #unlimitedEditor {
+  background:#fff; border:1px solid #e9e9e7; color:#37352f;
+  box-shadow: 0 30px 80px rgba(15,15,15,.16);
+}
+html:not([data-theme]):not([data-scheme="dark"]) #settingsHeader h3,
+html:not([data-theme]):not([data-scheme="dark"]) .char-panel-header h3,
+html:not([data-theme]):not([data-scheme="dark"]) .char-current-name,
+html:not([data-theme]):not([data-scheme="dark"]) #presetEdit h3,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-title,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-panel-name { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) #settingsHeader .hint,
+html:not([data-theme]):not([data-scheme="dark"]) .char-section-title,
+html:not([data-theme]):not([data-scheme="dark"]) .preset-edit-label,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-panel-desc,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-footer-hint { color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .card { background:#fbfbfa; border:1px solid #e9e9e7; box-shadow:none; }
+html:not([data-theme]):not([data-scheme="dark"]) .card h4 { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .card p { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .rowline { border-top-color:#ececea; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn { background:#fff; border:1px solid #e3e3e0; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn:hover { background:#f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn.danger { background:#fdf0ef; border-color:rgba(220,38,38,.25); color:#b91c1c; }
+html:not([data-theme]):not([data-scheme="dark"]) .smallbtn.danger:hover { background:#fbe3e1; }
+
+html:not([data-theme]):not([data-scheme="dark"]) #customPrompt,
+html:not([data-theme]):not([data-scheme="dark"]) .char-input,
+html:not([data-theme]):not([data-scheme="dark"]) .char-textarea,
+html:not([data-theme]):not([data-scheme="dark"]) #presetEditName,
+html:not([data-theme]):not([data-scheme="dark"]) #presetEditContent {
+  background:#fff; border:1px solid #e3e3e0; color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) #customPrompt:focus,
+html:not([data-theme]):not([data-scheme="dark"]) .char-input:focus,
+html:not([data-theme]):not([data-scheme="dark"]) .char-textarea:focus,
+html:not([data-theme]):not([data-scheme="dark"]) #presetEditName:focus,
+html:not([data-theme]):not([data-scheme="dark"]) #presetEditContent:focus {
+  border-color:#2383e2; box-shadow:0 0 0 3px rgba(35,131,226,.14);
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .char-rel-btn { background:#fff; border-color:#e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-rel-btn:hover { background:#f1f1ef; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-rel-btn.active { background:#2383e2; border-color:#2383e2; color:#fff; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item { background:#fff; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item:hover { background:#fbfbfa; border-color:#d8d8d4; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item.active { background:#eef5fd; border-color:#2383e2; box-shadow:0 0 0 2px rgba(35,131,226,.18); }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item-name { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item-btn { background:#fff; color:#787774; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .char-item-btn:hover { background:#f1f1ef; color:#37352f; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option { background:#fff; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option:hover { background:#fbfbfa; border-color:#d8d8d4; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"] { border-color:#c4c4c0; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"]:checked { border-color:#2383e2; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"]:checked::after { background:#2383e2; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-option input[type="radio"]:checked ~ .theme-text .theme-title { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-title { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-sub { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .theme-swatch { border-color:#e9e9e7; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .preset-item { background:#fff; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .preset-item:hover { background:#fbfbfa; border-color:#d8d8d4; }
+html:not([data-theme]):not([data-scheme="dark"]) .preset-item.enabled { background:#eef5fd; border-color:rgba(35,131,226,.42); }
+html:not([data-theme]):not([data-scheme="dark"]) .preset-name { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .preset-preview { color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .cost-cell { background:#fbfbfa; border:1px solid #e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-cell.total { background:#eef5fd; border-color:rgba(35,131,226,.42); }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-label { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-val { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-sub { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-details { background:#fbfbfa; border-color:#e9e9e7; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-details summary { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-details summary:hover { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-row { border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-date,
+html:not([data-theme]):not([data-scheme="dark"]) .cost-amt { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .cost-meta,
+html:not([data-theme]):not([data-scheme="dark"]) .cost-empty { color:#787774; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .msg-action-btn { background:#fff; border:1px solid #e9e9e7; color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .msg-action-btn:hover { background:#f1f1ef; color:#37352f; border-color:#e3e3e0; }
+/* —— 4.29-B 结束 —— */
+
+/* —— 4.29-C 侧栏 / 移动底栏 / 解限编辑器内部 / 设置 footer —— */
+html:not([data-theme]):not([data-scheme="dark"]) .left-sidebar,
+html:not([data-theme]):not([data-scheme="dark"]) .right-sidebar { background:#fbfbfa; border-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-header,
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-section-title { color:#787774; border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-divider { background:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-slot-placeholder,
+html:not([data-theme]):not([data-scheme="dark"]) #fishbowlSlot:empty::before { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn { background:#fff; border:1px solid #e9e9e7; color:#37352f; box-shadow:none; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn:hover:not([disabled]) { background:#f1f1ef; border-color:#d8d8d4; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn.active { background:#eef5fd; border-color:rgba(35,131,226,.5); color:#1a73d1; }
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn-disabled,
+html:not([data-theme]):not([data-scheme="dark"]) .sidebar-btn[disabled] { background:#fbfbfa; border-color:#ececea; color:#b0afab; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-bottom-tabs { background: rgba(255,255,255,.94); border-top-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-btn { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-btn.active { color:#1a73d1; background: rgba(35,131,226,.12); outline-color: rgba(35,131,226,.42); }
+html:not([data-theme]):not([data-scheme="dark"]) .mobile-tab-panel.active { background: rgba(255,255,255,.97); color:#787774; border-top-color:#ececea; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .ue-header,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-footer { background:#fbfbfa; border-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tabs { background:#fff; border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tab { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tab:hover { color:#37352f; background:#f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-tab.active { background:#fff; border-color:#e9e9e7; color:#37352f; border-bottom-color:#fff; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-body { background:#fff; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-placeholder { background:#eef5fd; border-color:rgba(35,131,226,.4); }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-placeholder-title { color:#1a73d1; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-placeholder-plan { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-close,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-btn-ghost { background:#fff; border:1px solid #e3e3e0; color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-close:hover,
+html:not([data-theme]):not([data-scheme="dark"]) .ue-btn-ghost:hover { background:#f1f1ef; }
+html:not([data-theme]):not([data-scheme="dark"]) .ue-badge { background: rgba(35,131,226,.12); color:#1a73d1; border-color: rgba(35,131,226,.4); }
+
+html:not([data-theme]):not([data-scheme="dark"]) .settings-footer {
+  background: linear-gradient(to bottom, rgba(255,255,255,0), #fff 35%);
+  border-top-color:#ececea;
+}
+/* —— 4.29-C 结束 —— */
+
+/* —— 4.29-D 鱼缸控制台 / 主持人行 / 多智能体按钮（浅紫字→深字） —— */
+html:not([data-theme]):not([data-scheme="dark"]) .fishbowl-bar {
+  background: rgba(35,131,226,.08); border-color: rgba(35,131,226,.3); color:#1a73d1;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .fishbowl-bar .fishbowl-info { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .fishbowl-bar .fishbowl-info b { color:#37352f; }
+
+html:not([data-theme]):not([data-scheme="dark"]) .fishbowl-side-panel {
+  background: rgba(255,255,255,.96); border-color: rgba(35,131,226,.25);
+  box-shadow: 0 4px 24px rgba(15,15,15,.12); color:#37352f;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-header { color:#1a73d1; border-bottom-color:#ececea; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-status {
+  background: rgba(35,131,226,.08); border-color: rgba(35,131,226,.3); color:#787774;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-status .fb-state-line { color:#1a73d1; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-status b { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended {
+  background:#eef5fd; border-color: rgba(35,131,226,.5); color:#1a73d1;
+}
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-title { color:#9a7212; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-line { color:#787774; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-line b { color:#37352f; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-side-ended .fb-ended-reason { color:#9b9a97; }
+html:not([data-theme]):not([data-scheme="dark"]) .fb-cmd-btn.fb-primary {
+  background: rgba(184,138,20,.14); border-color: rgba(184,138,20,.42); color:#9a7212;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) .row.moderator .meta { color:#1a73d1; }
+html:not([data-theme]):not([data-scheme="dark"]) .row.moderator .bubble {
+  background: rgba(35,131,226,.08); border-color: rgba(35,131,226,.42); color:#1a73d1;
+}
+
+html:not([data-theme]):not([data-scheme="dark"]) #multiAgentToggle.active {
+  background: rgba(35,131,226,.12); color:#1a73d1;
+  border-color: rgba(35,131,226,.5);
+  box-shadow: 0 0 0 1px rgba(35,131,226,.25) inset;
+}
+/* —— 4.29 minimal-light 完 —— */
+
+/* —— 4.30 角色在场感:头像呼吸微动 —— */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes avatarBreathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.028); }
+  }
+  .avatar {
+    animation: avatarBreathe 4.6s ease-in-out infinite;
+  }
+  /* lewd 主题:呼吸加深并与音频心跳 --pulse 实时联动 */
+  html[data-theme="lewd-peach"] .avatar,
+  html[data-theme="lewd-doll"] .avatar {
+    animation: none;
+    transform: scale(calc(1 + var(--pulse, 0) * 0.07));
+    transition: transform .09s linear;
+  }
+}
+/* —— 4.30 完 —— */
+
+/* —— 4.31 白天黑夜维度:日/夜切换控件(主题无关,适配明暗) —— */
+.scheme-toggle-row { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+.scheme-toggle-row .stg-label { font-size: 12px; color: var(--muted, #888); letter-spacing: .04em; }
+.scheme-seg { display: inline-flex; border: 1px solid var(--input-border, var(--border, #ccc)); border-radius: 9px; overflow: hidden; }
+.scheme-seg button { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: var(--muted, #888); font: inherit; font-size: 12px; line-height: 1; padding: 7px 13px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.scheme-seg button + button { border-left: 1px solid var(--input-border, var(--border, #ccc)); }
+.scheme-seg button:hover { background: rgba(127,127,127,.10); }
+.scheme-seg button.active { color: inherit; font-weight: 600; background: rgba(127,127,127,.16); }
+/* —— 4.31 完 —— */
+
+/* ══════ 4.32 主题风格强化（玻璃/蜜桃/少女 更鲜明）══════ */
+/* —— Glass · 动态玻璃感 —— */
+@keyframes glassFloat32 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+@keyframes glassSheen32 { 0%{background-position:-160% 0} 100%{background-position:260% 0} }
+html[data-theme="glass"] .bubble{ border-radius:22px 22px 22px 6px; border:1px solid rgba(255,255,255,.55); box-shadow:0 8px 30px rgba(60,80,140,.14), inset 0 1px 0 rgba(255,255,255,.75); backdrop-filter:blur(16px) saturate(180%); -webkit-backdrop-filter:blur(16px) saturate(180%); }
+html[data-theme="glass"] .bubble.user{ border-radius:22px 22px 6px 22px; position:relative; overflow:hidden; }
+html[data-theme="glass"] .bubble.user::after{ content:""; position:absolute; inset:0; background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.4) 48%,transparent 66%); background-size:240% 100%; animation:glassSheen32 7s ease-in-out infinite; pointer-events:none; }
+html[data-theme="glass"] .avatar{ animation:glassFloat32 6s ease-in-out infinite; box-shadow:0 6px 16px rgba(60,80,140,.22); }
+html[data-theme="glass"] .meta{ letter-spacing:.4px; font-weight:500; }
+@media (prefers-reduced-motion: reduce){ html[data-theme="glass"] .bubble.user::after, html[data-theme="glass"] .avatar{ animation:none; } }
+/* GLASS32-END */
+
+/* —— 蜜桃 · 情欲温柔派 —— */
+html[data-theme="lewd-peach"] .bubble{ border-radius:26px 26px 26px 10px; transition:transform .5s cubic-bezier(.22,1,.36,1), box-shadow .5s ease; }
+html[data-theme="lewd-peach"] .bubble.user{ border-radius:26px 26px 10px 26px; }
+html[data-theme="lewd-peach"] .bubble.ai:hover{ transform:translateY(-2px) scale(1.012); box-shadow:0 calc(6px + var(--pulse)*10px) calc(20px + var(--pulse)*26px) rgba(255,70,105,calc(.18 + var(--pulse)*.34)); }
+html[data-theme="lewd-peach"] .meta{ font-style:italic; letter-spacing:.6px; }
+html[data-theme="lewd-peach"] .row.user .meta{ background:linear-gradient(90deg,#FF6B9D,#FFB5C5); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:600; }
+html[data-theme="lewd-peach"] .avatar.bot{ box-shadow:0 0 calc(8px + var(--pulse)*22px) rgba(255,107,157,calc(.25 + var(--pulse)*.5)); }
+@media (prefers-reduced-motion: reduce){ html[data-theme="lewd-peach"] .bubble{ transition:none; } }
+/* PEACH32-END */
+
+/* —— 少女 · 二次元贴纸派 —— */
+@keyframes dollWobble32 { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-3deg)} 75%{transform:rotate(3deg)} }
+html[data-theme="lewd-doll"] .bubble{ border-radius:24px; border:2px solid #fff; box-shadow:0 4px 0 rgba(224,48,96,.28), 0 8px 18px rgba(224,48,96,.18); }
+html[data-theme="lewd-doll"] .bubble.ai{ box-shadow:0 4px 0 rgba(139,0,51,.18), 0 8px 18px rgba(224,48,96,.12); }
+html[data-theme="lewd-doll"] .bubble.user{ border-color:#fff; }
+html[data-theme="lewd-doll"] .avatar{ border:2px solid #fff; box-shadow:0 3px 8px rgba(139,0,51,.28); transition:transform .2s cubic-bezier(.34,1.56,.64,1); }
+html[data-theme="lewd-doll"] .row:hover .avatar{ transform:scale(1.12) rotate(-6deg); }
+html[data-theme="lewd-doll"] .meta{ font-weight:700; letter-spacing:.3px; }
+html[data-theme="lewd-doll"] button#sendBtn:hover{ animation:dollWobble32 .5s ease-in-out; }
+@media (prefers-reduced-motion: reduce){ html[data-theme="lewd-doll"] button#sendBtn:hover, html[data-theme="lewd-doll"] .row:hover .avatar{ animation:none; transform:none; } }
+/* —— 4.32 完 —— */
 
 
 
