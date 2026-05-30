@@ -78,7 +78,14 @@ window.__multi = {
 };
 
 // ── scene-strip 渲染（输入框上方的「下一句由谁说」选择条）──
+// 4.18 (v5): 用户要求删除——改用智能编排(AI 喊名字自动接力发言),strip 多余
+// 函数保留为兜底:若 DOM 里已存在 strip(老 session 残留)就清理,后续永远不再渲染
 function renderSceneStrip() {
+  const oldStrip = document.getElementById("sceneStrip");
+  if (oldStrip && oldStrip.parentNode) oldStrip.parentNode.removeChild(oldStrip);
+  if (window.__app && window.__app.updateSpacer) window.__app.updateSpacer();
+  return;
+  /* dead code 保留备查
   const float = document.querySelector(".input-floating");
   if (!float) return;
   let strip = document.getElementById("sceneStrip");
@@ -88,7 +95,6 @@ function renderSceneStrip() {
     if (window.__app && window.__app.updateSpacer) window.__app.updateSpacer();
     return;
   }
-  // 鱼缸 V2:relay/discuss 模式时引擎接管发言者,scene-strip 隐藏(避免与鱼缸条冲突)
   const _fb = window.__fishbowl;
   const _fbMode = _fb ? _fb.getMode() : "orchestrate";
   if (_fbMode === "relay" || _fbMode === "discuss") {
@@ -131,6 +137,7 @@ function renderSceneStrip() {
     });
   });
   if (window.__app && window.__app.updateSpacer) window.__app.updateSpacer();
+  */
 }
 
 // ── 顶栏 #multiAgentToggle 按钮 ──
@@ -143,6 +150,9 @@ function wireTopbarToggle() {
     const iconEl = btn.querySelector(".sidebar-btn-icon");
     if (iconEl) iconEl.textContent = on ? "👥" : "🧑";
     else btn.textContent = on ? "👥" : "🧑";
+    // 4.18 (v5): label 同步切换——未启用时显示「单智能体」更直觉
+    const labelEl = btn.querySelector(".sidebar-btn-label");
+    if (labelEl) labelEl.textContent = on ? "多智能体" : "单智能体";
     btn.classList.toggle("active", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
   }
@@ -205,6 +215,9 @@ function handleFbModeChip(next) {
   if (next === "relay" || next === "discuss") {
     const curRounds = fb.getMaxRounds();
     const ans = prompt("最大轮数(1-1000，默认 8。实质取消限制，仅防意外离开爆资金；随时点 ⏹ 手动终止):", String(curRounds));
+    // 4.35 修复:点「取消」(prompt 返回 null) 时不应自动开跑——回退到原模式并 return,
+    // 只有点「确定」才 setMaxRounds + start。修复"接龙不管确定还是取消都会开始"。
+    if (ans === null) { fb.setMode(cur); renderAll(); return; }
     const n = Math.max(1, Math.min(1000, parseInt(ans || curRounds, 10) || curRounds));
     fb.setMaxRounds(n);
     fb.start();

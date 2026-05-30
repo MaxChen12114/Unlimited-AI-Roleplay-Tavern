@@ -12,6 +12,7 @@
 (function () {
   'use strict';
   if (window.__portrait) return;
+  // 4.38-ui: 配色去硬编码,muted 文本改用 currentColor+opacity,随四主题(minimal/glass/lewd-peach/lewd-doll)自适应,不再用 #999/#888/#c0392b。
 
   var LS_STYLE = 'cfw_image_style_v1';
   var STYLES = {
@@ -111,14 +112,14 @@
       '<p>用当前选中<b>角色卡</b>的身份/性格自动拼提示词，z-image 出一张半身立绘，一键设为该角色的<b>微信发图基准图</b>（以后发图都以这张保持同一人，不用再手动上传）。SFW 半身像；消耗 1 次图像额度。<b>仅本设备</b>。</p>',
       '<div id="imgPortraitWho" style="font-size:13px;margin:4px 0;"></div>',
       '<div class="rowline" style="align-items:center;gap:10px;margin-top:8px;">',
-        '<label style="font-size:12px;color:#999;">画风</label>',
+        '<label style="font-size:12px;opacity:.6;">画风</label>',
         '<select id="imgPortraitStyle" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;">' + opts + '</select>',
       '</div>',
       '<div class="rowline" style="margin-top:10px;"><div></div><div class="btns">',
         '<button class="smallbtn" id="imgPortraitGen">✨ 生成立绘</button>',
         '<button class="smallbtn" id="imgPortraitSet" disabled>设为基准图</button>',
       '</div></div>',
-      '<div id="imgPortraitStatus" style="font-size:11px;color:#888;margin-top:8px;"></div>',
+      '<div id="imgPortraitStatus" style="font-size:11px;opacity:.6;margin-top:8px;"></div>',
       '<div id="imgPortraitPreview" style="margin-top:10px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;"></div>'
     ].join('');
     settings.appendChild(card);
@@ -140,7 +141,7 @@
       var c = activeCard();
       if (who) who.innerHTML = c
         ? '当前角色：<b>' + ((c.icon ? c.icon + ' ' : '') + (c.name || '(未命名)')) + '</b>'
-        : '<span style="color:#c0392b;">未选择角色卡 — 先去左侧「角色卡」选一个</span>';
+        : '<span style="color:#e5484d;">未选择角色卡 — 先去左侧「角色卡」选一个</span>';
       try {
         if (window.__chatImage && window.__chatImage.getBaseImage && c) {
           Promise.resolve(window.__chatImage.getBaseImage({ characterId: c.id || 'default' })).then(function (b) {
@@ -185,7 +186,7 @@
       '<h4>🎨 全局画风（全站出图生效）</h4>',
       '<p>统一控制<b>所有自动出图</b>的画风：发图、表情差分、角色头像、一键生角色/场景图、立绘都会套用。工坤手动文生图按你输入的提示词来，不受影响。仅本设备。</p>',
       '<div class="rowline" style="align-items:center;gap:10px;margin-top:6px;">',
-        '<label style="font-size:12px;color:#999;">画风</label>',
+        '<label style="font-size:12px;opacity:.6;">画风</label>',
         '<select id="imgStyleSelect" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;">' + opts + '</select>',
       '</div>'
     ].join('');

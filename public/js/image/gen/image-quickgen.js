@@ -208,12 +208,16 @@
     var s = document.createElement('style');
     s.id = 'qgStyles';
     s.textContent = [
-      '.qg-btn{font-size:12px;padding:5px 9px;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;cursor:pointer;opacity:.85;}',
-      '.qg-btn:hover{opacity:1;background:rgba(127,127,127,.12);}',
-      '.qg-holder{min-height:60px;border:1px dashed rgba(127,127,127,.4);border-radius:8px;display:flex;align-items:center;justify-content:center;padding:6px;}',
-      '.qg-holder img{max-width:100%;border-radius:6px;cursor:zoom-in;}',
-      '.qg-hint{font-size:11px;opacity:.55;}',
-      '.qg-status{font-size:11px;opacity:.7;min-height:14px;}'
+      // 4.38-ui: 右侧 形象/场景 面板视觉统一(随四主题,全用 currentColor/中性灰,无硬编码主题色)
+      '.qg-btn{font-size:12px;padding:6px 11px;border:1px solid rgba(127,127,127,.32);border-radius:8px;background:rgba(127,127,127,.06);color:inherit;cursor:pointer;opacity:.9;transition:background .15s,border-color .15s,opacity .15s,transform .05s;}',
+      '.qg-btn:hover{opacity:1;background:rgba(127,127,127,.16);border-color:currentColor;}',
+      '.qg-btn:active{transform:translateY(1px);}',
+      '.qg-holder{min-height:96px;border:1px solid rgba(127,127,127,.22);background:rgba(127,127,127,.05);border-radius:12px;display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden;}',
+      '.qg-holder img{max-width:100%;border-radius:9px;cursor:zoom-in;box-shadow:0 2px 10px rgba(0,0,0,.18);transition:transform .15s;}',
+      '.qg-holder img:hover{transform:scale(1.02);}',
+      '.qg-hint{font-size:11px;opacity:.5;}',
+      '.qg-status{font-size:11px;opacity:.7;min-height:14px;}',
+      '.qg-sec{font-size:12px;font-weight:600;opacity:.85;margin-bottom:8px;letter-spacing:.02em;}'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -329,10 +333,10 @@
     var ph = document.querySelector('#rightSidebar .sidebar-slot-placeholder');
     if (!ph || ph.__qgDone) return;
     ph.__qgDone = true;
-    ph.innerHTML = modeBar() + '<div style="font-size:12px;font-weight:600;opacity:.8;margin-bottom:8px;">🎭 角色形象</div>' +
+    ph.innerHTML = modeBar() + '<div class="qg-sec">🎭 角色形象</div>' +
       panelInner('character', '角色图') +
       '<div style="height:14px;"></div>' +
-      '<div style="font-size:12px;font-weight:600;opacity:.8;margin-bottom:8px;">🌆 场景图</div>' +
+      '<div class="qg-sec">🌆 场景图</div>' +
       panelInner('scene', '场景图');
     bindButtons(ph);
     bindMode(ph);

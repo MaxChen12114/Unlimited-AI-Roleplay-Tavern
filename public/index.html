@@ -31,6 +31,24 @@
     html.hide-stats .stats { display: none !important; }
     /* 4.20: 顶栏组件可开关 - 实时资金按钮 #costDisplay 关闭后,topbar-spacer 自动吸收空隙紧凑剩余按钮 */
     html.hide-topbar-cost #costDisplay { display: none !important; }
+    /* 4.38-ui: 思考按钮去 🧠 emoji,改简洁 sparkle 线性图标 + 文字;active 态紫色微光,与 send 的线性 SVG 风格统一 */
+    #thinkToggle { display: inline-flex; align-items: center; gap: 5px; }
+    #thinkToggle .think-ico { width: 15px; height: 15px; flex: none; opacity: .65; transition: opacity .15s, transform .15s, filter .15s, color .15s; }
+    #thinkToggle:hover:not(:disabled) .think-ico { opacity: 1; }
+    #thinkToggle.active .think-ico { opacity: 1; color: #7d6cff; filter: drop-shadow(0 0 4px rgba(125,108,255,.5)); transform: scale(1.06); }
+    #thinkToggle.active .think-label { color: #7d6cff; }
+    #thinkToggle:disabled .think-ico { opacity: .35; }
+    /* 4.39-ui: 左侧栏 + 移动 tab 图标统一为线性 SVG;用 currentColor 继承各主题文字色,无需维护多套图标 */
+    .sidebar-btn-icon, .mobile-tab-icon { display: inline-flex; align-items: center; justify-content: center; }
+    .sidebar-btn-icon svg { width: 18px; height: 18px; display: block; }
+    .mobile-tab-icon svg { width: 22px; height: 22px; display: block; }
+    .sidebar-btn-disabled .sidebar-btn-icon svg { opacity: .55; }
+    /* 4.40-ui: 设置面板标题/按钮 emoji 换线性图标(currentColor 随主题,与左栏统一) */
+    #settings .card h4 { display: flex; align-items: center; gap: 8px; }
+    #settings .card h4 svg { width: 16px; height: 16px; flex: none; opacity: .85; }
+    #settings .smallbtn { display: inline-flex; align-items: center; gap: 5px; }
+    #settings .smallbtn svg { width: 13px; height: 13px; flex: none; }
+    #settings #cloudExcludeSection > summary svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
   </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
   <!-- 支持 minimal(默认) / glass / lewd-peach / lewd-doll;新增主题只需扩 ALLOWED 集合 -->
@@ -76,15 +94,15 @@
 
     <nav class="sidebar-nav">
       <button class="sidebar-btn" id="characterBtn" title="🎭 角色卡:选择 / 管理 RP 角色">
-        <span class="sidebar-btn-icon">🎭</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.3"/><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0"/></svg></span>
         <span class="sidebar-btn-label">角色卡</span>
       </button>
       <button class="sidebar-btn" id="propsBtn" title="🎒 道具卡:临时改变 AI 行为 / 状态 / 好感度">
-        <span class="sidebar-btn-icon">🎒</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8l8 4.4v9.6l-8 4.4-8-4.4V7.2z"/><path d="M4 7.2l8 4.4 8-4.4"/><path d="M12 11.6V21"/></svg></span>
         <span class="sidebar-btn-label">道具卡</span>
       </button>
       <button class="sidebar-btn topbar-toggle" id="multiAgentToggle" title="单人 / 多人场景模式。多人模式下:角色面板出现「场景成员」管理区,卡库出现 +场景 按钮;输入框上方出现发言者选择条;AI 看到其他角色的发言但只代表自己。">
-        <span class="sidebar-btn-icon">🧑</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="2.7"/><path d="M3.5 18.5a5.5 5.5 0 0 1 11 0"/><path d="M16 6.2a2.7 2.7 0 0 1 0 5.2"/><path d="M17 13.2a5.5 5.5 0 0 1 3.5 5.3"/></svg></span>
         <span class="sidebar-btn-label">多智能体</span>
       </button>
       <!-- 4.5 解限模式按钮已搬到顶栏(项目灵魂必须常驻 sync 左侧),此处不再放 personaToggle 副本,避免 id 冲突 -->
@@ -99,13 +117,13 @@
 
       <!-- 图像工具页入口:独立 /image/ 全功能工作室(文生图/改图) -->
       <a class="sidebar-btn" id="imageStudioBtn" href="/image/" target="_blank" rel="noopener" title="图像工具页:文生图 / 改图(独立页,新标签打开)">
-        <span class="sidebar-btn-icon">💼</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.8" cy="9.8" r="1.6"/><path d="M4.5 17l4.8-4.3 3.2 2.8 3-2.5 4 3.5"/></svg></span>
         <span class="sidebar-btn-label">图像工具页</span>
       </a>
 
       <!-- 4.7 解限编辑器入口：项目灵魂的 JSON 资产编辑壳 -->
       <button class="sidebar-btn" id="unlimitedEditorBtn" data-dev-only title="🛠 解限编辑器（开发者）：编辑 Preset / 角色 / 世界观 / UI 配置的 JSON 资产">
-        <span class="sidebar-btn-icon">🛠</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 7L3.5 12l5 5"/><path d="M15.5 7l5 5-5 5"/></svg></span>
         <span class="sidebar-btn-label">解限编辑器</span>
       </button>
 
@@ -113,23 +131,23 @@
       <div class="sidebar-section-title">即将上线</div>
 
       <button class="sidebar-btn sidebar-btn-disabled" disabled title="阶段 1 计划:世界书 / Lore Book">
-        <span class="sidebar-btn-icon">📖</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.4 5.3 8.2 4.8 4.5 5.1v13c3.7-.3 5.9.2 7.5 1.4"/><path d="M12 6.5c1.6-1.2 3.8-1.7 7.5-1.4v13c-3.7-.3-5.9.2-7.5 1.4"/></svg></span>
         <span class="sidebar-btn-label">世界书</span>
       </button>
       <button class="sidebar-btn sidebar-btn-disabled" disabled title="阶段 3 计划:图像基础设施(生图 + 改图双模式)">
-        <span class="sidebar-btn-icon">🎨</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2a8.8 8.8 0 0 0 0 17.6c1.4 0 2-1 2-1.9 0-1.2 1-2 2.1-2H18a3 3 0 0 0 3-3c0-4.9-4-8.7-9-8.7z"/><circle cx="8" cy="11" r="1.1"/><circle cx="12" cy="8" r="1.1"/><circle cx="16" cy="10.5" r="1.1"/></svg></span>
         <span class="sidebar-btn-label">图像(生/改)</span>
       </button>
       <button class="sidebar-btn sidebar-btn-disabled" disabled title="计划中:文件上传(图/文本)">
-        <span class="sidebar-btn-icon">📎</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9.5z"/><path d="M13.5 4v5.5H19"/><path d="M12 17.5V12"/><path d="M9.6 14.4L12 12l2.4 2.4"/></svg></span>
         <span class="sidebar-btn-label">文件上传</span>
       </button>
       <button class="sidebar-btn sidebar-btn-disabled" disabled title="阶段 2 计划:角色卡/UI/JSON 导入">
-        <span class="sidebar-btn-icon">📥</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v9.5"/><path d="M8.4 9.6L12 13l3.6-3.4"/><path d="M5 15.5V17a2.5 2.5 0 0 0 2.5 2.5h9A2.5 2.5 0 0 0 19 17v-1.5"/></svg></span>
         <span class="sidebar-btn-label">JSON 导入</span>
       </button>
       <button class="sidebar-btn sidebar-btn-disabled" disabled title="计划中:多开聊天 tab">
-        <span class="sidebar-btn-icon">➕</span>
+        <span class="sidebar-btn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.4a7.4 7.4 0 0 1-10.7 6.6L4.5 19l1-4.2A7.4 7.4 0 1 1 20 11.4z"/><path d="M12 8.6v5.2M9.4 11.2h5.2"/></svg></span>
         <span class="sidebar-btn-label">多开聊天</span>
       </button>
     </nav>
@@ -194,7 +212,10 @@
       <!-- 4.26 ⑦：思考按钮并入下方输入框内联，composer-toolbar 留空兜底（鱼缸 mode row 等若挂这里仍可用；:empty 时 CSS 隐藏不占位） -->
       <div class="composer-toolbar"></div>
       <div class="input-inner" id="composer">
-        <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关(仅快速模式生效)">🧠 思考关</button>
+        <button class="chip-btn" id="thinkToggle" title="DeepSeek V4 思考模式开关(仅快速模式生效)" aria-pressed="false">
+          <svg class="think-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3.5l1.35 5.15L18.5 10l-5.15 1.35L12 16.5l-1.35-5.15L5.5 10l5.15-1.35L12 3.5z"/><path d="M18.6 13.8l.6 2.3 2.3.6-2.3.6-.6 2.3-.6-2.3-2.3-.6 2.3-.6.6-2.3z"/></svg>
+          <span class="think-label">思考</span>
+        </button>
         <textarea id="msg" rows="1" placeholder="Message..."></textarea>
         <button id="sendBtn" title="发送" aria-label="发送">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -212,7 +233,7 @@
         </div>
 
         <div class="card" data-dev-only>
-          <h4>🔒 密码保护（Auth）</h4>
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>密码保护（Auth）</h4>
           <p>
             <b>云同步</b>永远需要密码（用 Cloudflare Secret <code>CHAT_PASSWORD</code> 鉴权）。
             <b>聊天密码保护</b>可选:开启后调用 <code>/api/chat</code> 需带 token,关闭后聊天接口公开(任何扫到域名的人都能用你的余额)。
@@ -230,7 +251,7 @@
         </div>
 
         <div class="card">
-          <h4>☁️ 云同步（Cloud Sync）</h4>
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 18.5a4.5 4.5 0 0 1-.7-8.95A5.5 5.5 0 0 1 17 9.1 3.7 3.7 0 0 1 16.8 18.5z"/></svg>云同步（Cloud Sync）</h4>
           <p>
             把全部数据(角色卡 · 道具 · preset · 亲密度 · 费用日志 · 对话历史)同步到 Cloudflare KV,换浏览器换设备都能看到。
             开启后本地改动会延迟 3 秒自动推送。<b>不同步:</b>密码 token / 同步状态本身。
@@ -246,11 +267,11 @@
               <label for="syncIncludeChatToggle">同步聊天历史（默认关 · 开启=跨设备共享对话）</label>
             </div>
             <div class="btns">
-              <button class="smallbtn" id="syncNowBtn">↻ 立即同步</button>
-              <button class="smallbtn" id="syncExportBtn" data-dev-only>📤 导出备份</button>
-              <button class="smallbtn" id="syncImportBtn" data-dev-only>📥 导入备份</button>
+              <button class="smallbtn" id="syncNowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v3.5h-3.5"/></svg>立即同步</button>
+              <button class="smallbtn" id="syncExportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出备份</button>
+              <button class="smallbtn" id="syncImportBtn" data-dev-only><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入备份</button>
               <input type="file" id="syncImportFile" accept=".json" style="display:none">
-              <button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/道具/preset/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。">🗑 清空云端</button>
+              <button class="smallbtn danger" id="syncWipeBtn" title="删除云端 KV 上的全部数据(角色卡/道具/preset/费用/对话的云端副本)。本地数据保留;同步仍开启时下次本地改动会重新上传,想让云端保持空请清空后关闭云同步。"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>清空云端</button>
             </div>
           </div>
           <div id="syncStatus" style="font-size:11px;color:#888;margin-top:8px;"></div>
@@ -301,7 +322,7 @@
             })();
           </script>
           <details id="cloudExcludeSection" style="margin-top:10px;">
-            <summary style="cursor:pointer;font-size:12px;color:#aaa;">🧹 按角色/会话 只清云端（保留本地）</summary>
+            <summary style="cursor:pointer;font-size:12px;color:#aaa;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 16.5a4.2 4.2 0 0 1-.6-8.35A5.2 5.2 0 0 1 16.5 8"/><path d="M14.5 14l5 5M19.5 14l-5 5"/></svg>按角色/会话 只清云端（保留本地）</summary>
             <div style="font-size:11px;color:#888;margin:6px 0;line-height:1.5;">
               只把选中项从云端 KV 抹掉,本地保留且本设备不再上传(tombstone)。<b>会话</b>仅在开了「同步聊天历史」时云端才有副本。<b>跨设备注意:</b>排除清单仅本设备生效,其他仍持有该数据且未排除的设备改动后可能把它推回。
             </div>
@@ -316,9 +337,9 @@
   function excluded(){ try { return (window.__sync && window.__sync.getExcluded) ? window.__sync.getExcluded() : {roles:[],sessions:[]}; } catch(e){ return {roles:[],sessions:[]}; } }
   function nameOf(id, cs){ if(id==='__none__') return '（未选角色）'; var c=cs.filter(function(x){return x.id===id;})[0]; return c ? ((c.icon?c.icon+' ':'')+c.name) : id; }
   function rowHtml(kind, id, label, isEx){
-    var btn = isEx ? '<button class="smallbtn" data-act="restore" data-kind="'+kind+'" data-id="'+esc(id)+'">↩ 恢复同步</button>' : '<button class="smallbtn danger" data-act="wipe" data-kind="'+kind+'" data-id="'+esc(id)+'">🗑 仅清云端</button>';
+    var btn = isEx ? '<button class="smallbtn" data-act="restore" data-kind="'+kind+'" data-id="'+esc(id)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 6 6"/></svg>恢复同步</button>' : '<button class="smallbtn danger" data-act="wipe" data-kind="'+kind+'" data-id="'+esc(id)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V5.2A1.7 1.7 0 0 1 10.7 3.5h2.6A1.7 1.7 0 0 1 15 5.2V6.5"/><path d="M6.8 6.5l.7 12.2a1.8 1.8 0 0 0 1.8 1.7h5.4a1.8 1.8 0 0 0 1.8-1.7l.7-12.2"/></svg>仅清云端</button>';
     var tag = kind==='session' ? '会话' : '角色';
-    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;'+(isEx?'opacity:.65;':'')+'"><span>'+(isEx?'🚫 ':'')+'<b style="color:#999;">['+tag+']</b> '+esc(label)+'</span>'+btn+'</div>';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;'+(isEx?'opacity:.65;':'')+'"><span>'+(isEx?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" style="width:12px;height:12px;vertical-align:-1px;margin-right:3px;opacity:.7"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg>':'')+'<b style="color:#999;">['+tag+']</b> '+esc(label)+'</span>'+btn+'</div>';
   }
   function render(){
     var cs=cards(), ex=excluded(), sl=slots(), html='';
@@ -357,7 +378,7 @@
 
         <!-- 4.20: 顶栏组件开关 - 用户可关闭可选组件 (目前: 实时资金按钮),其他按钮自动紧凑排列 -->
         <div class="card">
-          <h4>🧭 顶栏组件(Topbar Components)</h4>
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M3.5 9.2h17"/></svg>顶栏组件(Topbar Components)</h4>
           <p>
             控制顶栏可选组件的显示。关闭后剩余按钮(模式切换 / 解限 / 同步 / 设置)自动紧凑排列。<b>仅本设备生效</b>(不进云同步)。
           </p>
@@ -433,7 +454,7 @@
         </div>
 
         <div class="card">
-          <h4>🎵 主题音效(Ambient Audio)</h4>
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17V6l9-1.8V15"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="15.5" cy="15.2" r="2.5"/></svg>主题音效(Ambient Audio)</h4>
           <p>
             控制 <b>蜜桃 / 少女</b> 主题下的环境音和呼吸脉动。<b>关闭后</b>即使切到这两个主题也不会发声、不脉动(背景仍是配色)。其他主题不受影响。设置仅本设备生效(不进云同步)。
           </p>
@@ -443,7 +464,7 @@
               <label for="lewdAudioToggle">启用主题音频 + 脉动</label>
             </div>
             <div class="btns">
-              <button class="smallbtn danger" id="lewdAudioPanic" title="立即暂停 + 切回极简主题(等同 Shift+Esc)">⏹ 紧急停止</button>
+              <button class="smallbtn danger" id="lewdAudioPanic" title="立即暂停 + 切回极简主题(等同 Shift+Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>紧急停止</button>
             </div>
           </div>
           <div class="rowline" style="margin-top:8px;align-items:center;">
@@ -458,7 +479,7 @@
 
         <!-- 2026-05-29: 互动模式 卡 (严格角色扮演开关 + NSFW 等级单选) -->
         <div class="card">
-          <h4>🎭 互动模式(Roleplay Mode)</h4>
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19l8.5-8.5"/><path d="M15 4.5l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9z"/><path d="M6.5 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>互动模式(Roleplay Mode)</h4>
           <p>
             控制底层 system prompt 注入。默认是<b>软提示</b>——允许角色自然跳出、不拍响词汇黑名单。
             <b>严格角色扮演</b>开启后注入完整人设铁则。
@@ -541,7 +562,7 @@
 
         <!-- 2026-05-29: 显示设置 卡 (字号 / 字体 / 隐藏小按钮 monitor) -->
         <div class="card">
-          <h4>✨ 显示设置(Display)</h4>
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 12h2M10 12h10M4 17h6M14 17h6"/><circle cx="14" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="12" cy="17" r="2"/></svg>显示设置(Display)</h4>
           <p>
             调整聊天区字号和字体。<b>仅本设备生效</b>(不进云同步)，刷新页面也会保留。隐藏小按钮 toggle 在上面「互动模式」卡。
           </p>
@@ -635,8 +656,8 @@
             <div></div>
             <div class="btns">
               <button class="smallbtn" id="presetNewBtn">+ 新建</button>
-              <button class="smallbtn" id="presetImportBtn" title="从剪贴板导入 JSON">📥 导入</button>
-              <button class="smallbtn" id="presetExportBtn" title="导出 JSON 到剪贴板">📤 导出</button>
+              <button class="smallbtn" id="presetImportBtn" title="从剪贴板导入 JSON"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V15"/><path d="M8 11l4 4 4-4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导入</button>
+              <button class="smallbtn" id="presetExportBtn" title="导出 JSON 到剪贴板"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出</button>
               <button class="smallbtn danger" id="presetResetBtn" title="清空并恢复 5 个内置 starter">重置 starter</button>
             </div>
           </div>
@@ -644,7 +665,7 @@
 
         <!-- 2026-05-29 微信发图(实验):chat-image.js 配套设置卡 -->
         <div class="card" id="chatImageCard">
-          <h4>📸 微信发图(Photo · 实验)</h4>
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.2-1.8h6.6L16.5 7h2A1.5 1.5 0 0 1 20 8.5v8A1.5 1.5 0 0 1 18.5 18h-13A1.5 1.5 0 0 1 4 16.5z"/><circle cx="12" cy="12" r="3.2"/></svg>微信发图(Photo · 实验)</h4>
           <p>
             开启后,AI 在合适时机会在回复末尾追加发图信号 <code>[[发图:场景]]</code>,文本侧抠出并渲染成图片气泡。
             出图由图像侧 <code>window.__chatImage</code> 提供;<b>契约未上线时走内置 mock 占位图</b>,整条链路可独立测。<b>仅本设备生效</b>(不进云同步)。
@@ -655,7 +676,7 @@
               <label for="ciEnableToggle">启用微信发图(注入发图能力 + 渲染图片气泡)</label>
             </div>
             <div class="btns">
-              <button class="smallbtn" id="ciManualBtn" title="手动叫当前角色发一张图(绕过冷却/上限)">📷 让 TA 发张图</button>
+              <button class="smallbtn" id="ciManualBtn" title="手动叫当前角色发一张图(绕过冷却/上限)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.2-1.8h6.6L16.5 7h2A1.5 1.5 0 0 1 20 8.5v8A1.5 1.5 0 0 1 18.5 18h-13A1.5 1.5 0 0 1 4 16.5z"/><circle cx="12" cy="12" r="3.2"/></svg>让 TA 发张图</button>
             </div>
           </div>
           <div class="rowline" style="margin-top:8px;align-items:center;gap:10px;">
@@ -665,7 +686,7 @@
             <input type="number" id="ciCap" min="0" max="99" value="6" style="width:70px;padding:5px 8px;border-radius:6px;border:1px solid var(--border,#333);background:transparent;color:inherit;">
           </div>
           <div class="rowline" style="margin-top:8px;align-items:center;gap:10px;">
-            <label class="smallbtn" style="cursor:pointer;">⬆️ 上传当前角色基准图<input type="file" id="ciBaseUpload" accept="image/*" style="display:none;"></label>
+            <label class="smallbtn" style="cursor:pointer;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>上传当前角色基准图<input type="file" id="ciBaseUpload" accept="image/*" style="display:none;"></label>
             <span id="ciBaseStatus" style="font-size:11px;color:#888;"></span>
           </div>
           <div style="font-size:11px;color:#888;margin-top:10px;line-height:1.6;">
@@ -686,7 +707,7 @@
           <div class="rowline">
             <div></div>
             <div class="btns">
-              <button class="smallbtn" id="costExportBtn" title="导出为 JSON 到剪贴板">📤 导出</button>
+              <button class="smallbtn" id="costExportBtn" title="导出为 JSON 到剪贴板"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V5"/><path d="M8 8.5L12 4.5l4 4"/><path d="M5 14.5v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-3.5"/></svg>导出</button>
               <button class="smallbtn danger" id="costClearBtn" title="清空费用日志">清空日志</button>
             </div>
           </div>
@@ -738,7 +759,7 @@
         <div class="rowline" style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(127,127,127,.18);justify-content:flex-end;">
           <div></div>
           <div class="btns">
-            <button class="smallbtn" id="closeSettings">✕ 关闭设置</button>
+            <button class="smallbtn" id="closeSettings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>关闭设置</button>
           </div>
         </div>
       </div>
@@ -787,19 +808,19 @@
 <!-- ══ 4.4 手机底部 4-tab 标签条(仅 <1024px 显示;桌面端 display:none) ══ -->
 <nav class="mobile-bottom-tabs" id="mobileBottomTabs" aria-label="底部面板切换">
   <button class="mobile-tab-btn" data-tab="fishbowl" title="点击显示/隐藏群聊控制台（默认隐藏避免遮挡消息）">
-    <span class="mobile-tab-icon">🎣</span>
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg></span>
     <span class="mobile-tab-label">鱼缸</span>
   </button>
   <button class="mobile-tab-btn" data-tab="avatar" disabled title="阶段 3 图像基础设施上线后启用">
-    <span class="mobile-tab-icon">🖼️</span>
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="12" cy="10" r="2.6"/><path d="M7 17.5a5 5 0 0 1 10 0"/></svg></span>
     <span class="mobile-tab-label">形象</span>
   </button>
   <button class="mobile-tab-btn" data-tab="scene" disabled title="阶段 3 图像基础设施上线后启用">
-    <span class="mobile-tab-icon">🌆</span>
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2.2"/><circle cx="8" cy="10" r="1.4"/><path d="M4.5 16.5l4.5-4 3 2.5 3.2-3 4.3 4"/></svg></span>
     <span class="mobile-tab-label">场景</span>
   </button>
   <button class="mobile-tab-btn" data-tab="memo" disabled title="上下文摘要 · 计划中">
-    <span class="mobile-tab-icon">📝</span>
+    <span class="mobile-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h7L18 8v12.5H6.5z"/><path d="M13.5 3.5V8H18"/><path d="M9 12.5h6M9 15.5h6M9 18h3.5"/></svg></span>
     <span class="mobile-tab-label">摘要</span>
   </button>
 </nav>
@@ -959,7 +980,9 @@
 <script src="/js/text/core/auth.js"></script>
 <!-- 4.17: dev.js 必须在 auth.js 后、其他模块前。它 monkey-patch fetch 抓 /api/chat payload,需要包裹 auth.js 的 Authorization 注入 -->
 <script src="/js/text/core/dev.js"></script>
-<script src="/js/text/core/config.js"></script>
+<!-- 4.37: 改回加载 Worker 动态下发的 /config.js。clientConfigJs() 生成纯 window.APP_* 赋值(无 export),且 worker 路由早于静态资源命中,以 src/config.js 为唯一模型源。
+       重组目录时误把带 ESM export 的服务端 config 放到了 /js/text/core/config.js,classic <script> 读到 export 即抛 SyntaxError 中断 → window.APP_MODELS_FREE 未赋值 → 模型下拉空。 -->
+<script src="/config.js"></script>
 <script src="/js/text/data/character.js"></script>
 <script src="/js/text/engine/multi-agent.js"></script>
 <script src="/js/text/data/props.js"></script>

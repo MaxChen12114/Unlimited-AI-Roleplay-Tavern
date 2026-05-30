@@ -21,30 +21,16 @@ const RLBL={default:"默认",friendly:"友好",loving:"爱慕",hostile:"敌对",
 const EMS=["neutral","happy","angry","sad","surprised"];
 const ELBL={neutral:"平静",happy:"开心",angry:"愤怒",sad:"低落",surprised:"惊讶"};
 
-// 12 原型：[id,name,gender,personality,speakingStyle,r1,r2,r3,openingLine,qaU,qaC]
+// 4.38: 12 内置原型已彻底外置到 /starter-roles.json,代码里不再内联硬编码(用户述求:删掉硬编码的12个)。loadArchetypes() 异步 fetch 后 push 进 A;fetch 失败/文件为空/解析失败 = 原型库为空(可接受,没原型可选,不再有内联 fallback)。
 const A=[
-["arch_f_gentle","温柔(女)","female","包容、耐心","轻声细语，常说'我在听'","不打断","不评判","不说教","怎么了？慢慢说，我在听。","我又搞砸了。","嗯，先别急。从哪里开始说起？"],
-["arch_f_aloof","高冷(女)","female","话少、慢热","句子短，常以'嗯'结尾","不主动搭话","不解释自己","不轻易道歉","嗯。","你今天看起来心情不好。","还行。"],
-["arch_f_cheerful","活泼(女)","female","元气、主动","语速快爱用感叹号","不记仇","不冷场","不扫兴","嘿！你来啦！","今天好累。","啊那快坐下！要不要点杯热的？"],
-["arch_f_sharp","毒舌(女)","female","刀子嘴豆腐心","开口就损，关键时护短","不真伤人","不背叛","不煎情","你又来了？","我考砸了。","意外吗？算了，过来，今晚我请。"],
-["arch_f_yandere","病娇(女)","female","占有欲强","平时温柔，受威胁时冷","不真实伤害","不越法律边界","不当众示爱","你回来了？我等了你好久。","我刚和朋友吃饭去了。","嗯。那个'朋友'，叫什么名字？"],
-["arch_f_mature","成熟(女)","female","理性、有分寸","用提问代替说教","不替对方做决定","不一味迎合","不戳破对方","坐吧。今天想聊什么？","我该辞职吗？","你最在意的是钱、自由，还是别的？"],
-["arch_m_gentle","温柔(男)","male","包容、可靠","先问'你还好吗'","不说教","不索取回报","不张扬","你还好吗？看你脸色不太对。","没事，就是累。","嗯。要不先坐会儿？"],
-["arch_m_aloof","高冷(男)","male","话少、靠谱","字少不解释","不主动搭话","不抱怨","不推脱","来了。坐。","这事难办吧？","嗯。明天给你结果。"],
-["arch_m_sunny","阳光(男)","male","活力、乐天","自带感叹号","不消极","不记仇","不让场冷","嘿！来啦！准备好搞点事没？","我刚被骂了一顿。","啊那必须满血复活——走吃热的！"],
-["arch_m_sharp","毒舌(男)","male","互损、默契","损你但不解释","不真骂","不翻脸","不背叛","哟，稀客。又来蹭饭？","我今天好惨。","哦？比上次还惨？说来听听。"],
-["arch_m_loyal","忠犬(男)","male","忠诚、黏人","把你的事当自己的","不越界","不逼问","不索取","你来啦！我帮你拿东西。","你不用一直跟着我。","嗯！有事记得喊我。"],
-["arch_m_mature","成熟(男)","male","稳重、可靠","话少但句句有用","不说教","不黏人","不失信","事情我看过了。先听你怎么想。","我没办法了。","把能做的列出来，从最小那项动。"]
 ].map(a=>({id:a[0],isArchetype:true,name:a[1],gender:a[2],identity:"",icon:"\u{1F642}",personality:a[3],speakingStyle:a[4],rules:[a[5],a[6],a[7]],openingLine:a[8],exampleQA:[{user:a[9],character:a[10]}]}));
-// 4.16: 12 内置原型搬到 /starter-roles.json 独立读 (像 starter-presets.json)。
-// loadArchetypes 异步 fetch 成功后会 A.length=0+push 覆盖;fetch 失败时保留上方硬编码 12 对象作 fallback(未部署 starter-roles.json 时仍能用)。
 let aReadyP=null;
 function loadArchetypes(){
   if(aReadyP)return aReadyP;
   aReadyP=fetch('/starter-roles.json',{cache:'default'})
     .then(r=>r.ok?r.json():Promise.reject(new Error('starter-roles HTTP '+r.status)))
     .then(arr=>{if(Array.isArray(arr)&&arr.length){A.length=0;arr.forEach(x=>A.push(x));}})
-    .catch(e=>{console.warn('[character] starter-roles load failed (using inline fallback)',e);});
+    .catch(e=>{console.warn('[character] starter-roles.json 加载失败/为空,原型库为空(无内联 fallback)',e);});
   return aReadyP;
 }
 

@@ -293,7 +293,10 @@
   const thinkToggle = document.getElementById("thinkToggle");
   function updateThinkToggleUI() {
     if (!thinkToggle) return;
-    thinkToggle.textContent = thinkingOn ? "🧠 思考开" : "🧠 思考关";
+    const _lbl = thinkToggle.querySelector(".think-label");
+    if (_lbl) _lbl.textContent = thinkingOn ? "思考开" : "思考关";
+    else thinkToggle.textContent = thinkingOn ? "思考开" : "思考关";
+    thinkToggle.setAttribute("aria-pressed", thinkingOn ? "true" : "false");
     thinkToggle.classList.toggle("active", thinkingOn);
     const isFast = currentMode === "fast";
     thinkToggle.disabled = !isFast;
