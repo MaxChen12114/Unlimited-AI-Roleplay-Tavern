@@ -851,6 +851,20 @@ function initUi() {
 
   $("btnClearKey").onclick = clearRememberedKey;
 
+  // 记住 API Key:勾选框变化 / 输入框输入时即时持久化,不必等到点「执行」生成。
+  // 修复:此前 key 只在 rememberKeyMaybe()(生成时)才写入 LS,勾了「记住」但没生成就刷新会丢。
+  $("rememberKey").addEventListener("change", () => {
+    const key = $("apiKey").value.trim();
+    if ($("rememberKey").checked && key) localStorage.setItem("moark_api_key", key);
+    else if (!$("rememberKey").checked) localStorage.removeItem("moark_api_key");
+  });
+  $("apiKey").addEventListener("input", () => {
+    if (!$("rememberKey").checked) return;
+    const key = $("apiKey").value.trim();
+    if (key) localStorage.setItem("moark_api_key", key);
+    else localStorage.removeItem("moark_api_key");
+  });
+
   loadRememberedKey();
 }
 

@@ -49,6 +49,22 @@
     #settings .smallbtn { display: inline-flex; align-items: center; gap: 5px; }
     #settings .smallbtn svg { width: 13px; height: 13px; flex: none; }
     #settings #cloudExcludeSection > summary svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
+    /* 4.41-ui: 右侧栏标签化(群聊控制台 / 图像),解决图像快捷面板挤占、遮挡多智能体控制台的问题 */
+    #rightSidebar { display: flex; flex-direction: column; min-height: 0; }
+    #rightSidebar .rs-header { padding: 8px 8px 6px; }
+    #rightSidebar .rs-tabs { display: flex; gap: 4px; background: rgba(127,127,127,.10); border-radius: 10px; padding: 3px; }
+    #rightSidebar .rs-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 7px 8px; border: none; border-radius: 8px; background: transparent; color: inherit; opacity: .58; cursor: pointer; transition: background .15s, opacity .15s, box-shadow .15s; }
+    #rightSidebar .rs-tab svg { width: 15px; height: 15px; flex: none; }
+    #rightSidebar .rs-tab:hover { opacity: .85; }
+    #rightSidebar .rs-tab.active { opacity: 1; background: rgba(127,127,127,.22); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    #rightSidebar .rs-tab .rs-dot { width: 6px; height: 6px; border-radius: 50%; background: #7d6cff; display: none; }
+    #rightSidebar .rs-tab.has-activity .rs-dot { display: inline-block; }
+    #rightSidebar .rs-body { flex: 1; min-height: 0; display: flex; }
+    #rightSidebar .rs-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 10px; }
+    #rightSidebar .rs-panel[hidden] { display: none; }
+    #rightSidebar .rs-empty { font-size: 11.5px; line-height: 1.6; opacity: .5; text-align: center; padding: 18px 12px; }
+    #rightSidebar #fishbowlSlot:not(:empty) + .rs-empty { display: none; }
+    #rightSidebar .rs-panel .sidebar-slot-placeholder { padding: 0; border: none; background: none; text-align: left; color: inherit; min-height: 0; }
   </style>
   <!-- FOUC-safe 主题预应用:在 styles.css 应用前读 LS 立即贴 data-theme -->
   <!-- 支持 minimal(默认) / glass / lewd-peach / lewd-doll;新增主题只需扩 ALLOWED 集合 -->
@@ -786,19 +802,29 @@
   </div>
   <!-- /#app -->
 
-  <!-- ══ 右侧栏:鱼缸控制台 slot + 未来扩展槽(仅桌面) ══ -->
-  <aside class="right-sidebar" id="rightSidebar" aria-label="鱼缸与侧辅面板">
-    <div class="sidebar-header">
-      <span class="sidebar-title">面板</span>
+  <!-- ══ 右侧栏:4.41-ui 标签化(群聊控制台 / 图像),避免图像快捷面板挤占、遮挡多智能体控制台 ══ -->
+  <!-- #fishbowlSlot 仍由 multi-agent.js 挂载(id 不变);图像面板由 image-quickgen.js 注入 #imageSlot(保留 .sidebar-slot-placeholder 类,选择器零改动)。两 tab 各自独立滚动,永不重叠 -->
+  <aside class="right-sidebar" id="rightSidebar" aria-label="侧辅面板">
+    <div class="sidebar-header rs-header">
+      <div class="rs-tabs" role="tablist" aria-label="右侧面板切换">
+        <button class="rs-tab active" data-rs-tab="fishbowl" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9l-4.5 3.5V16.5H4A1.5 1.5 0 0 1 2.5 15V7A1.5 1.5 0 0 1 4 5.5z"/><circle cx="8.5" cy="11" r="1"/><circle cx="12" cy="11" r="1"/><circle cx="15.5" cy="11" r="1"/></svg>
+          <span>群聊</span><span class="rs-dot" aria-hidden="true"></span>
+        </button>
+        <button class="rs-tab" data-rs-tab="image" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><circle cx="8.8" cy="9.8" r="1.6"/><path d="M4.5 17l4.8-4.3 3.2 2.8 3-2.5 4 3.5"/></svg>
+          <span>图像</span><span class="rs-dot" aria-hidden="true"></span>
+        </button>
+      </div>
     </div>
-    <!-- multi-agent.js 会把 .fishbowl-side-panel 挂到这里(桌面);手机才降级到底部条 -->
-    <div id="fishbowlSlot" class="sidebar-slot"></div>
-
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-section-title">即将上线</div>
-    <div class="sidebar-slot-placeholder">
-      角色形象 / 场景图 / 上下文摘要<br>
-      (阶段 3 图像上线后填充)
+    <div class="rs-body">
+      <section class="rs-panel active" data-rs-panel="fishbowl" role="tabpanel">
+        <div id="fishbowlSlot" class="sidebar-slot"></div>
+        <div class="rs-empty" id="fishbowlEmptyHint">开启顶栏「多智能体」后，群聊控制台会出现在这里。</div>
+      </section>
+      <section class="rs-panel" data-rs-panel="image" role="tabpanel" hidden>
+        <div id="imageSlot" class="sidebar-slot-placeholder"></div>
+      </section>
     </div>
   </aside>
 
@@ -972,6 +998,56 @@
   setTimeout(refresh, 200);
   setTimeout(refresh, 1500);
   setTimeout(refresh, 4000);
+})();
+</script>
+
+<!-- ══ 4.41-ui 右侧栏标签切换(群聊控制台 / 图像):避免图像快捷面板挤占、遮挡多智能体控制台 ══ -->
+<script>
+(function(){
+  var rs = document.getElementById('rightSidebar');
+  if (!rs) return;
+  var tabs = rs.querySelectorAll('.rs-tab');
+  var panels = rs.querySelectorAll('.rs-panel');
+  var slot = document.getElementById('fishbowlSlot');
+  function activate(name){
+    tabs.forEach(function(t){
+      var on = t.getAttribute('data-rs-tab') === name;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) t.classList.remove('has-activity');
+    });
+    panels.forEach(function(p){
+      var on = p.getAttribute('data-rs-panel') === name;
+      p.classList.toggle('active', on);
+      if (on) p.removeAttribute('hidden'); else p.setAttribute('hidden', '');
+    });
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ activate(t.getAttribute('data-rs-tab')); });
+  });
+  // 群聊控制台一旦挂进 #fishbowlSlot 就自动切到「群聊」tab,否则会被图像面板挡住看不见
+  if (slot){
+    var was = slot.childElementCount > 0;
+    try {
+      var mo = new MutationObserver(function(){
+        var now = slot.childElementCount > 0;
+        if (now && !was) activate('fishbowl');
+        else if (now){
+          var ft = rs.querySelector('.rs-tab[data-rs-tab="fishbowl"]');
+          if (ft && !ft.classList.contains('active')) ft.classList.add('has-activity');
+        }
+        was = now;
+      });
+      mo.observe(slot, { childList: true });
+    } catch(e){}
+  }
+  // 顶栏「多智能体」按钮:点完(若控制台已挂出)顺手切到群聊 tab
+  var mab = document.getElementById('multiAgentToggle');
+  if (mab) mab.addEventListener('click', function(){
+    setTimeout(function(){ if (slot && slot.childElementCount > 0) activate('fishbowl'); }, 80);
+  });
+  // 初始 tab:已有群聊控制台→群聊;否则→图像(更常用,避免落在空 tab 上)
+  activate(slot && slot.childElementCount > 0 ? 'fishbowl' : 'image');
 })();
 </script>
 
