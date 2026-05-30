@@ -58,13 +58,13 @@ body { overflow-x: hidden; }
 }
 
 .topbar-inner {
-  /* 单行 nowrap;装不下时:统计折叠成 💰 / 次要按钮收进 ⋯ 溢出菜单(详见 .topbar-collapse 块) */
+  /* 4.36:桌面也允许换行。溢出折叠菜单(.topbar-collapse)早已废弃、不在 DOM,nowrap 会把 Model 下拉挤出左边裁掉。改 wrap 兜底:挤不下就换行,绝不裁切;配合 .model-pill 可收缩,通常仍保持单行。 */
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .pill {
@@ -78,7 +78,10 @@ body { overflow-x: hidden; }
   flex: 0 0 auto;
 }
 
-.model-pill { min-width: 260px; }
+.model-pill { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+/* 4.36 修复:模型下拉可收缩 + 不再被裁切。顶栏按钮多(尤其开发者模式多 ⏸🛠)挤窄时,旧 min-width:260px 不收缩 → 整块溢出到左边被裁 → 模型下拉消失。 */
+.model-pill .model-label { flex: 0 0 auto; }
+.model-pill select { min-width: 110px; flex: 1 1 auto; }
 
 .model-label {
   font-size: 13px;
